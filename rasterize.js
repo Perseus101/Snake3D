@@ -108,8 +108,6 @@ function setupWebGL() {
 function loadTriangles() {
     var inputTriangles = getJSONFile(INPUT_TRIANGLES_URL, "triangles");
     if (inputTriangles != String.null) {
-        var coordArray = []; // 1D array of vertex coords for WebGL
-        var indexArray = []; // 1D array of vertex coords for WebGL
         triBufferSize = 0;
 
         for (var whichSet = 0; whichSet < inputTriangles.length; whichSet++) {
@@ -158,11 +156,11 @@ function setupShaders() {
         gl.compileShader(vShader); // compile the code for gpu execution
 
         if (!gl.getShaderParameter(fShader, gl.COMPILE_STATUS)) { // bad frag shader compile
-            throw "error during fragment shader compile: " + gl.getShaderInfoLog(fShader);
             gl.deleteShader(fShader);
+            throw "error during fragment shader compile: " + gl.getShaderInfoLog(fShader);
         } else if (!gl.getShaderParameter(vShader, gl.COMPILE_STATUS)) { // bad vertex shader compile
-            throw "error during vertex shader compile: " + gl.getShaderInfoLog(vShader);
             gl.deleteShader(vShader);
+            throw "error during vertex shader compile: " + gl.getShaderInfoLog(vShader);
         } else { // no compile errors
             var shaderProgram = gl.createProgram(); // create the single shader program
             gl.attachShader(shaderProgram, fShader); // put frag shader in program
@@ -193,9 +191,6 @@ function renderTriangles() {
     for(var i=0; i<objects.length; i++) {
         objects[i].draw();
     }
-    // vertex buffer: activate and feed into vertex shader
-
-    //gl.drawArrays(gl.TRIANGLES, 0, 3); // render
 } // end render triangles
 
 
