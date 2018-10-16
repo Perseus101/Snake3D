@@ -4,16 +4,18 @@
 const WIN_Z = 0;  // default graphics window z coord in world space
 const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in world space
 const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
-const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog2/triangles.json"; // triangles file loc
-const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog2/spheres.json"; // spheres file loc
-var Eye = new vec4.fromValues(0.5, 0.5, -0.5, 1.0); // default eye position in world space
-
+const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles.json"; // triangles file loc
+const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog3/spheres.json"; // spheres file loc
+var Eye = new vec3.fromValues(0.5, 0.5, -0.5); // default eye position in world space
+var Center = new vec3.fromValues(0.5, 0.5, 0); // default look at position
+var Up = new vec3.fromValues(0, 1, 0);
 /* webgl globals */
+var canvas;
 var gl = null; // the all powerful gl object. It's all here folks!
 var objects = [];
 var vertexPositionAttrib; // where to put position for vertex shader
 var diffuseMaterialUniform; // where to put position for vertex shader
-
+var transformMatrixUniform; // where to put position transform matrix
 
 class Triangle {
     constructor(vertices, indices, material) {
@@ -85,7 +87,7 @@ function getJSONFile(url, descr) {
 function setupWebGL() {
 
     // Get the canvas and context
-    var canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
+    canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
     gl = canvas.getContext("webgl"); // get a webgl object from it
 
     try {
@@ -134,11 +136,13 @@ function setupShaders() {
     // define vertex shader in essl using es6 template strings
     var vShaderCode = `
         uniform vec3 diffuse;
+        uniform mat4 transform;
+
         attribute vec3 vertexPosition;
 
         varying vec4 color;
         void main(void) {
-            gl_Position = vec4(vertexPosition, 1.0); // use the untransformed position
+            gl_Position = transform * vec4(vertexPosition, 1.0);
 
             color = vec4(diffuse, 1.0);
         }
@@ -175,6 +179,8 @@ function setupShaders() {
                     gl.getAttribLocation(shaderProgram, "vertexPosition");
                 diffuseMaterialUniform = // get pointer to diffuse material input
                     gl.getUniformLocation(shaderProgram, "diffuse");
+                transformMatrixUniform = // get pointer to transform matrix input
+                    gl.getUniformLocation(shaderProgram, "transform");
                 gl.enableVertexAttribArray(vertexPositionAttrib); // input to shader from array
             } // end if no shader program link errors
         } // end if no compile errors
@@ -188,7 +194,16 @@ function setupShaders() {
 // render the loaded model
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
+    var transform = mat4.create();
+    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.01, 100);
+
+    var lookAt = mat4.create();
+    mat4.lookAt(lookAt, Eye, Center, Up);
+
+    mat4.multiply(transform, transform, lookAt);
+
     for(var i=0; i<objects.length; i++) {
+        gl.uniformMatrix4fv(transformMatrixUniform, false, transform);
         objects[i].draw();
     }
 } // end render triangles
