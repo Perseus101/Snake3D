@@ -7,8 +7,9 @@ const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in 
 const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles.json"; // triangles file loc
 const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog3/spheres.json"; // spheres file loc
 var Eye = new vec3.fromValues(0.5, 0.5, -0.5); // default eye position in world space
-var Center = new vec3.fromValues(0.5, 0.5, 0); // default look at position
+var Center = new vec3.fromValues((WIN_RIGHT-WIN_LEFT)/2, (WIN_TOP-WIN_BOTTOM)/2, WIN_Z); // default center position
 var Up = new vec3.fromValues(0, 1, 0);
+
 /* webgl globals */
 var canvas;
 var gl = null; // the all powerful gl object. It's all here folks!
@@ -16,6 +17,60 @@ var objects = [];
 var vertexPositionAttrib; // where to put position for vertex shader
 var diffuseMaterialUniform; // where to put position for vertex shader
 var transformMatrixUniform; // where to put position transform matrix
+
+/** Camera class */
+class Camera {
+    constructor(eye, center, up) {
+        this.eye = eye;
+        this.center = center;
+        this.up = up;
+        this.lookAt = mat4.create();
+        mat4.lookAt(this.lookAt, this.eye, this.center, this.up);
+
+        this.translation = mat4.create();
+        this.rotate = mat4.create();
+    }
+
+    /**
+     * Translate the camera in the current orientation
+     * @param {vec3} delta the direction to move relative to
+     *                      the camera's current orientation
+     */
+    translate(delta) {
+        var translate = mat4.create();
+        mat4.fromTranslation(translate, delta);
+        // Rotate the translation into the current frame of reference
+        var op = mat4.clone(this.rotate);
+        mat4.invert(op, op);
+        mat4.multiply(op, op, translate);
+        mat4.multiply(op, op, this.rotate);
+        // Add the new translation
+        mat4.multiply(this.translation, op, this.translation);
+    }
+
+    /**
+     * Rotate the camera around the Y axis
+     * @param {float} delta the rotation delta in radians
+     */
+    rotateY(delta) {
+        mat4.rotateY(this.rotate, this.rotate, delta);
+    }
+
+    /**
+     * Rotate the camera around the X axis
+     * @param {float} delta the rotation delta in radians
+     */
+    rotateX(delta) {
+        mat4.rotateX(this.rotate, this.rotate, delta);
+    }
+
+    getTransform() {
+        var out = mat4.clone(this.lookAt);
+        mat4.multiply(out, out, this.translation);
+        mat4.multiply(out, out, this.rotate);
+        return out;
+    }
+}
 
 class Triangle {
     constructor(vertices, indices, material) {
@@ -52,6 +107,8 @@ class Triangle {
         gl.drawElements(gl.TRIANGLES, this.triBufferSize, gl.UNSIGNED_SHORT, 0);
     }
 }//end Triangle class
+
+var camera = new Camera(Eye, Center, Up);
 
 
 // ASSIGNMENT HELPER FUNCTIONS
@@ -197,10 +254,7 @@ function renderTriangles() {
     var transform = mat4.create();
     mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.01, 100);
 
-    var lookAt = mat4.create();
-    mat4.lookAt(lookAt, Eye, Center, Up);
-
-    mat4.multiply(transform, transform, lookAt);
+    mat4.multiply(transform, transform, camera.getTransform());
 
     for(var i=0; i<objects.length; i++) {
         gl.uniformMatrix4fv(transformMatrixUniform, false, transform);
@@ -208,14 +262,51 @@ function renderTriangles() {
     }
 } // end render triangles
 
-
 /* MAIN -- HERE is where execution begins after window load */
 
 function main() {
-
     setupWebGL(); // set up the webGL environment
     loadTriangles(); // load in the triangles from tri file
     setupShaders(); // setup the webGL shaders
     renderTriangles(); // draw the triangles using webGL
-
 } // end main
+
+const DELTA = 0.1;
+const ROT_DELTA = 0.05;
+function keypress(event) {
+    var char = String.fromCharCode(event.charCode || event.keyCode);
+    switch(char) {
+        // Translation
+        case 'a':
+            camera.translate(vec3.fromValues(-DELTA, 0, 0));
+            break;
+        case 'd':
+            camera.translate(vec3.fromValues(DELTA, 0, 0));
+            break;
+        case 's':
+            camera.translate(vec3.fromValues(0, 0, DELTA));
+            break;
+        case 'w':
+            camera.translate(vec3.fromValues(0, 0, -DELTA));
+            break;
+
+        case 'q':
+            camera.translate(vec3.fromValues(0, DELTA, 0));
+            break;
+        case 'e':
+            camera.translate(vec3.fromValues(0, -DELTA, 0));
+        break;
+
+        // Rotate
+        case 'A':
+            camera.rotateY(ROT_DELTA);
+            break;
+        case 'D':
+            camera.rotateY(-ROT_DELTA);
+            break;
+
+        default:
+            return;
+    }
+    renderTriangles();
+}
