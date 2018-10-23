@@ -24,11 +24,9 @@ class Camera {
         this.eye = eye;
         this.center = center;
         this.up = up;
-        this.lookAt = mat4.create();
-        mat4.lookAt(this.lookAt, this.eye, this.center, this.up);
 
-        this.translation = mat4.create();
-        this.rotate = mat4.create();
+        this.transform = mat4.create();
+        mat4.lookAt(this.transform, this.eye, this.center, this.up);
     }
 
     /**
@@ -40,12 +38,8 @@ class Camera {
         var translate = mat4.create();
         mat4.fromTranslation(translate, delta);
         // Rotate the translation into the current frame of reference
-        var op = mat4.clone(this.rotate);
-        mat4.invert(op, op);
-        mat4.multiply(op, op, translate);
-        mat4.multiply(op, op, this.rotate);
         // Add the new translation
-        mat4.multiply(this.translation, op, this.translation);
+        mat4.multiply(this.transform, translate, this.transform);
     }
 
     /**
@@ -53,7 +47,10 @@ class Camera {
      * @param {float} delta the rotation delta in radians
      */
     rotateY(delta) {
-        mat4.rotateY(this.rotate, this.rotate, delta);
+        var rotate = mat4.create();
+        mat4.fromYRotation(rotate, delta);
+
+        mat4.multiply(this.transform, rotate, this.transform);
     }
 
     /**
@@ -61,14 +58,17 @@ class Camera {
      * @param {float} delta the rotation delta in radians
      */
     rotateX(delta) {
-        mat4.rotateX(this.rotate, this.rotate, delta);
+        var rotate = mat4.create();
+        mat4.fromXRotation(rotate, delta);
+
+        mat4.multiply(this.transform, rotate, this.transform);
     }
 
+    /**
+     * Return viewing transform matrix
+     */
     getTransform() {
-        var out = mat4.clone(this.lookAt);
-        mat4.multiply(out, out, this.translation);
-        mat4.multiply(out, out, this.rotate);
-        return out;
+        return this.transform;
     }
 }
 
@@ -263,50 +263,79 @@ function renderTriangles() {
 } // end render triangles
 
 /* MAIN -- HERE is where execution begins after window load */
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-function main() {
+async function main() {
     setupWebGL(); // set up the webGL environment
     loadTriangles(); // load in the triangles from tri file
     setupShaders(); // setup the webGL shaders
-    renderTriangles(); // draw the triangles using webGL
+
+    while(true) {
+        handleKeys();
+        renderTriangles(); // draw the triangles using webGL
+        await sleep(10);
+    }
 } // end main
 
-const DELTA = 0.1;
-const ROT_DELTA = 0.05;
-function keypress(event) {
-    var char = String.fromCharCode(event.charCode || event.keyCode);
-    switch(char) {
-        // Translation
-        case 'a':
-            camera.translate(vec3.fromValues(-DELTA, 0, 0));
-            break;
-        case 'd':
-            camera.translate(vec3.fromValues(DELTA, 0, 0));
-            break;
-        case 's':
-            camera.translate(vec3.fromValues(0, 0, DELTA));
-            break;
-        case 'w':
-            camera.translate(vec3.fromValues(0, 0, -DELTA));
-            break;
+var keys = { 16: false };
+function keydown(event) {
+    keys[event.keyCode] = true;
+}
+function keyup(event) {
+    keys[event.keyCode] = false;
+}
 
-        case 'q':
-            camera.translate(vec3.fromValues(0, DELTA, 0));
-            break;
-        case 'e':
-            camera.translate(vec3.fromValues(0, -DELTA, 0));
-        break;
+const DELTA = 0.01;
+const ROT_DELTA = 0.01;
 
-        // Rotate
-        case 'A':
-            camera.rotateY(ROT_DELTA);
-            break;
-        case 'D':
-            camera.rotateY(-ROT_DELTA);
-            break;
-
-        default:
-            return;
-    }
-    renderTriangles();
+function handleKeys() {
+    var shift = keys[16];
+    Object.keys(keys).forEach(function(code) {
+        if( keys[code] ) {
+            var char = String.fromCharCode(code);
+            if(!shift) { char = char.toLowerCase(); }
+            switch(char) {
+                // Translation
+                case 'a':
+                    camera.translate(vec3.fromValues(DELTA, 0, 0));
+                    break;
+                case 'd':
+                    camera.translate(vec3.fromValues(-DELTA, 0, 0));
+                    break;
+                case 's':
+                    camera.translate(vec3.fromValues(0, 0, -DELTA));
+                    break;
+                case 'w':
+                    camera.translate(vec3.fromValues(0, 0, DELTA));
+                    break;
+        
+                case 'q':
+                    camera.translate(vec3.fromValues(0, -DELTA, 0));
+                    break;
+                case 'e':
+                    camera.translate(vec3.fromValues(0, DELTA, 0));
+                    break;
+        
+                // Rotate
+                case 'A':
+                    camera.rotateY(ROT_DELTA);
+                    break;
+                case 'D':
+                    camera.rotateY(-ROT_DELTA);
+                    break;
+        
+                case 'W':
+                    camera.rotateX(ROT_DELTA);
+                    break;
+                case 'S':
+                    camera.rotateX(-ROT_DELTA);
+                    break;
+        
+                default:
+                    return;
+            }
+        }
+    });
 }
