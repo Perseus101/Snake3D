@@ -15,7 +15,11 @@ var canvas;
 var gl = null; // the all powerful gl object. It's all here folks!
 var objects = [];
 var vertexPositionAttrib; // where to put position for vertex shader
-var diffuseMaterialUniform; // where to put position for vertex shader
+var ambientMaterialUniform; // where to put ambient material
+var diffuseMaterialUniform; // where to put diffuse material
+var specularMaterialUniform; // where to put specular material
+var specularNMaterialUniform; // where to put specular n material
+var eyeUniform; // where to put position transform matrix
 var transformMatrixUniform; // where to put position transform matrix
 
 /** Camera class */
@@ -70,6 +74,24 @@ class Camera {
     getTransform() {
         return this.transform;
     }
+
+    /**
+     * Return viewing transform matrix
+     */
+    getTransformInv() {
+        var inv = mat4.create();
+        mat4.invert(inv, this.transform);
+        return inv;
+    }
+
+    /**
+     * Return eye position
+     */
+    getEye() {
+        var eye = vec3.create();
+        mat4.getTranslation(eye, this.getTransformInv());
+        return eye;
+    }
 }
 
 class Triangle {
@@ -102,7 +124,10 @@ class Triangle {
         gl.vertexAttribPointer(vertexPositionAttrib, 3, gl.FLOAT, false, 0, 0); // feed
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer); // activate index buffer
 
+        gl.uniform3fv(ambientMaterialUniform, this.material.ambient);
         gl.uniform3fv(diffuseMaterialUniform, this.material.diffuse);
+        gl.uniform3fv(specularMaterialUniform, this.material.specular);
+        gl.uniform1i(specularNMaterialUniform, this.material.n);
 
         gl.drawElements(gl.TRIANGLES, this.triBufferSize, gl.UNSIGNED_SHORT, 0);
     }
@@ -192,16 +217,31 @@ function setupShaders() {
 
     // define vertex shader in essl using es6 template strings
     var vShaderCode = `
+        uniform vec3 ambient;
         uniform vec3 diffuse;
+        uniform vec3 specular;
+        uniform int n;
+
         uniform mat4 transform;
+        uniform vec3 eye;
 
         attribute vec3 vertexPosition;
 
         varying vec4 color;
+        varying vec3 vertPos;
+
         void main(void) {
             gl_Position = transform * vec4(vertexPosition, 1.0);
 
-            color = vec4(diffuse, 1.0);
+            vec3 V = vertexPosition - eye;
+            vec3 L = vec3(-3.0, 1.0, -0.5);
+            vec3 N = vec3(0.0, 0.0, -1.0);
+            vec3 R = normalize(2.0*N*dot(N, L) - L);
+
+            color = vec4(ambient
+                    + diffuse * dot(V, L)
+                    + specular * pow(dot(R, V), float(n))
+                , 1.0);
         }
     `;
 
@@ -217,10 +257,10 @@ function setupShaders() {
         gl.compileShader(vShader); // compile the code for gpu execution
 
         if (!gl.getShaderParameter(fShader, gl.COMPILE_STATUS)) { // bad frag shader compile
-            gl.deleteShader(fShader);
+            //gl.deleteShader(fShader);
             throw "error during fragment shader compile: " + gl.getShaderInfoLog(fShader);
         } else if (!gl.getShaderParameter(vShader, gl.COMPILE_STATUS)) { // bad vertex shader compile
-            gl.deleteShader(vShader);
+            //gl.deleteShader(vShader);
             throw "error during vertex shader compile: " + gl.getShaderInfoLog(vShader);
         } else { // no compile errors
             var shaderProgram = gl.createProgram(); // create the single shader program
@@ -234,8 +274,17 @@ function setupShaders() {
                 gl.useProgram(shaderProgram); // activate shader program (frag and vert)
                 vertexPositionAttrib = // get pointer to vertex shader input
                     gl.getAttribLocation(shaderProgram, "vertexPosition");
+                ambientMaterialUniform = // get pointer to ambient material input
+                    gl.getUniformLocation(shaderProgram, "ambient");
                 diffuseMaterialUniform = // get pointer to diffuse material input
                     gl.getUniformLocation(shaderProgram, "diffuse");
+                specularMaterialUniform = // get pointer to specular material input
+                    gl.getUniformLocation(shaderProgram, "specular");
+                specularNMaterialUniform = // get pointer to specular material input
+                    gl.getUniformLocation(shaderProgram, "n");
+
+                eyeUniform = // get pointer to eye location input
+                    gl.getUniformLocation(shaderProgram, "eye");
                 transformMatrixUniform = // get pointer to transform matrix input
                     gl.getUniformLocation(shaderProgram, "transform");
                 gl.enableVertexAttribArray(vertexPositionAttrib); // input to shader from array
@@ -258,6 +307,7 @@ function renderTriangles() {
 
     for(var i=0; i<objects.length; i++) {
         gl.uniformMatrix4fv(transformMatrixUniform, false, transform);
+        gl.uniform3fv(eyeUniform, camera.getEye());
         objects[i].draw();
     }
 } // end render triangles
