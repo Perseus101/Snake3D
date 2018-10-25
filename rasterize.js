@@ -165,6 +165,7 @@ class Model {
 
         this.modelMatrix = mat4.create();
         this.modelRotationMatrix = mat4.create();
+        this.modelScaleMatrix = mat4.create();
         this.locationMatrix = mat4.create();
 
         vec3.scale(center, center, -1/vertices.length);
@@ -298,6 +299,7 @@ class Model {
             mat4.fromScaling(scale, vec3.fromValues(1.2, 1.2, 1.2));
             mat4.multiply(tempModelMatrix, scale, tempModelMatrix);
         }
+        mat4.multiply(tempModelMatrix, this.modelScaleMatrix, tempModelMatrix);
         mat4.multiply(tempModelMatrix, this.modelRotationMatrix, tempModelMatrix);
         mat4.multiply(tempModelMatrix, this.modelMatrix, tempModelMatrix);
 
@@ -488,7 +490,7 @@ function loadEllipsoids() {
             mat4.fromScaling(scale,[inputSpheres[whichSet].a,
                                     inputSpheres[whichSet].b,
                                     inputSpheres[whichSet].c]);
-            mat4.multiply(model.modelMatrix, scale, model.modelMatrix);
+            mat4.multiply(model.modelScaleMatrix, scale, model.modelScaleMatrix);
             mat4.multiply(model.modelMatrix, translate, model.modelMatrix);
 
             objects.push(model);
