@@ -32,7 +32,8 @@ var specularNMaterialUniform; // where to put specular n material
 var eyeUniform; // where to put eye position
 var lightUniform; // where to put light position
 var viewMatrixUniform; // where to put position transform matrix
-var modelMatrixUniform; // where to put position transform matrix
+var modelMatrixUniform; // where to put model transform matrix
+var modelInvTransMatrixUniform; // where to put the inverse transpose of the model transform matrix
 
 /** Camera class */
 class Camera {
@@ -301,6 +302,9 @@ class Model {
         mat4.multiply(tempModelMatrix, this.modelMatrix, tempModelMatrix);
 
         gl.uniformMatrix4fv(modelMatrixUniform, false, tempModelMatrix);
+        mat4.invert(tempModelMatrix, tempModelMatrix);
+        mat4.transpose(tempModelMatrix, tempModelMatrix);
+        gl.uniformMatrix4fv(modelInvTransMatrixUniform, false, tempModelMatrix);
 
         var ambient = vec3.create();
         vec3.scale(ambient, this.material.ambient, this.material_mods.ambient);
@@ -387,6 +391,8 @@ class Shader {
             gl.getUniformLocation(this.shaderProgram, "view");
         modelMatrixUniform = // get pointer to model matrix input
             gl.getUniformLocation(this.shaderProgram, "model");
+        modelInvTransMatrixUniform = // get pointer to model matrix input
+            gl.getUniformLocation(this.shaderProgram, "modelInvTrans");
 
     }
 }
@@ -469,17 +475,9 @@ function setupShaders() {
     /********************************************************/
 
     // define fragment shader in essl using es6 template strings
-    var fPhongShaderCode = `
+    var fPhongShaderCode = `#version 100
         precision mediump float;
-        varying vec4 color;
 
-        void main(void) {
-            gl_FragColor = color;
-        }
-    `;
-
-    // define vertex shader in essl using es6 template strings
-    var vPhongShaderCode = `
         uniform vec3 ambient;
         uniform vec3 diffuse;
         uniform vec3 specular;
@@ -488,28 +486,40 @@ function setupShaders() {
         uniform vec3 eye;
         uniform vec3 light;
 
+        varying vec3 pos;
+        varying vec3 normal;
+
+        void main(void) {
+            vec3 V = normalize(eye - pos);
+            vec3 L = normalize(light - pos);
+            vec3 R = normalize(2.0*normal*dot(normal, L) - L);
+
+            gl_FragColor = vec4(ambient
+                + diffuse * abs(dot(normal, L))
+                + specular * pow(abs(dot(R, V)), n)
+            , 1.0);
+        }
+    `;
+
+    // define vertex shader in essl using es6 template strings
+    var vPhongShaderCode = `#version 100
         uniform mat4 view;
         uniform mat4 model;
+        uniform mat4 invTransModel;
 
         attribute vec3 vertexPosition;
         attribute vec3 vertexNormal;
 
-        varying vec4 color;
-        varying vec3 vertPos;
+        varying vec3 pos;
+        varying vec3 normal;
 
         void main(void) {
             vec4 pos4 = model * vec4(vertexPosition, 1.0);
             gl_Position = view * pos4;
 
-            vec3 pos = pos4.xyz;
-            vec3 V = normalize(eye - pos);
-            vec3 L = normalize(light - pos);
-            vec3 R = normalize(2.0*vertexNormal*dot(vertexNormal, L) - L);
-
-            color = vec4(ambient
-                    + diffuse * abs(dot(vertexNormal, L))
-                    + specular * pow(abs(dot(R, V)), n)
-                , 1.0);
+            pos = pos4.xyz;
+            vec4 normal4 = model * vec4(vertexNormal, 1.0);
+            normal = normalize(normal4.xyz);
         }
     `;
 
@@ -518,17 +528,9 @@ function setupShaders() {
     /**********************************************************/
 
     // define fragment shader in essl using es6 template strings
-    var fBlinnPhongShaderCode = `
+    var fBlinnPhongShaderCode = `#version 100
         precision mediump float;
-        varying vec4 color;
 
-        void main(void) {
-            gl_FragColor = color;
-        }
-    `;
-
-    // define vertex shader in essl using es6 template strings
-    var vBlinnPhongShaderCode = `
         uniform vec3 ambient;
         uniform vec3 diffuse;
         uniform vec3 specular;
@@ -537,28 +539,40 @@ function setupShaders() {
         uniform vec3 eye;
         uniform vec3 light;
 
+        varying vec3 pos;
+        varying vec3 normal;
+
+        void main(void) {
+            vec3 V = normalize(eye - pos);
+            vec3 L = normalize(light - pos);
+            vec3 H = normalize(L + V);
+
+            gl_FragColor = vec4(ambient
+                + diffuse * abs(dot(normal, L))
+                + specular * pow(abs(dot(H, normal)), n)
+            , 1.0);
+        }
+    `;
+
+    // define vertex shader in essl using es6 template strings
+    var vBlinnPhongShaderCode = `#version 100
         uniform mat4 view;
         uniform mat4 model;
+        uniform mat4 invTransModel;
 
         attribute vec3 vertexPosition;
         attribute vec3 vertexNormal;
 
-        varying vec4 color;
-        varying vec3 vertPos;
+        varying vec3 pos;
+        varying vec3 normal;
 
         void main(void) {
             vec4 pos4 = model * vec4(vertexPosition, 1.0);
             gl_Position = view * pos4;
 
-            vec3 pos = pos4.xyz;
-            vec3 V = normalize(eye - pos);
-            vec3 L = normalize(light - pos);
-            vec3 H = normalize(L + V);
-
-            color = vec4(ambient
-                    + diffuse * abs(dot(vertexNormal, L))
-                    + specular * pow(abs(dot(H, vertexNormal)), n)
-                , 1.0);
+            pos = pos4.xyz;
+            vec4 normal4 = model * vec4(vertexNormal, 1.0);
+            normal =  normalize(normal4.xyz);
         }
     `;
 
