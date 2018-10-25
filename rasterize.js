@@ -12,6 +12,10 @@ var Up = new vec3.fromValues(0, 1, 0);
 
 var light = new vec3.fromValues(-3.0, 1.0, -0.5); // default light position in world space
 
+var phongShader = null;
+var blinnPhongShader = null;
+var shader = null;
+
 /* webgl globals */
 var canvas;
 var gl = null; // the all powerful gl object. It's all here folks!
@@ -149,6 +153,68 @@ class Model {
     }
 }//end Model class
 
+class Shader {
+    constructor(fShaderCode, vShaderCode) {
+        this.is_valid = true;
+        this.fShader = gl.createShader(gl.FRAGMENT_SHADER); // create frag shader
+        gl.shaderSource(this.fShader, fShaderCode); // attach code to shader
+        gl.compileShader(this.fShader); // compile the code for gpu execution
+
+        this.vShader = gl.createShader(gl.VERTEX_SHADER); // create vertex shader
+        gl.shaderSource(this.vShader, vShaderCode); // attach code to shader
+        gl.compileShader(this.vShader); // compile the code for gpu execution
+
+        if (!gl.getShaderParameter(this.fShader, gl.COMPILE_STATUS)) { // bad frag shader compile
+            this.is_valid = false;
+            console.log("error during fragment shader compile: " + gl.getShaderInfoLog(this.fShader));
+        } else if (!gl.getShaderParameter(this.vShader, gl.COMPILE_STATUS)) { // bad vertex shader compile
+            this.is_valid = false;
+            console.log("error during vertex shader compile: " + gl.getShaderInfoLog(this.vShader));
+        } else { // no compile errors
+            this.shaderProgram = gl.createProgram(); // create the single shader program
+            gl.attachShader(this.shaderProgram, this.fShader); // put frag shader in program
+            gl.attachShader(this.shaderProgram, this.vShader); // put vertex shader in program
+            gl.linkProgram(this.shaderProgram); // link program into gl context
+
+            if (!gl.getProgramParameter(this.shaderProgram, gl.LINK_STATUS)) { // bad program link
+                this.is_valid = false;
+                console.log("error during shader program linking: " + gl.getProgramInfoLog(this.shaderProgram));
+            }
+        } // end if no compile errors
+    }
+
+    activate() {
+        if(!this.is_valid) {
+            console.log("Cannot activate invalid shader");
+            return;
+        }
+        gl.useProgram(this.shaderProgram); // activate shader program (frag and vert)
+        vertexPositionAttrib = // get pointer to vertex shader input
+            gl.getAttribLocation(this.shaderProgram, "vertexPosition");
+        gl.enableVertexAttribArray(vertexPositionAttrib); // input to shader from array
+        vertexNormalAttrib = // get pointer to vertex shader input
+            gl.getAttribLocation(this.shaderProgram, "vertexNormal");
+        gl.enableVertexAttribArray(vertexNormalAttrib); // input to shader from array
+
+        ambientMaterialUniform = // get pointer to ambient material input
+            gl.getUniformLocation(this.shaderProgram, "ambient");
+        diffuseMaterialUniform = // get pointer to diffuse material input
+            gl.getUniformLocation(this.shaderProgram, "diffuse");
+        specularMaterialUniform = // get pointer to specular material input
+            gl.getUniformLocation(this.shaderProgram, "specular");
+        specularNMaterialUniform = // get pointer to specular material input
+            gl.getUniformLocation(this.shaderProgram, "n");
+
+        eyeUniform = // get pointer to eye location input
+            gl.getUniformLocation(this.shaderProgram, "eye");
+        lightUniform = // get pointer to light location input
+            gl.getUniformLocation(this.shaderProgram, "light");
+
+        transformMatrixUniform = // get pointer to transform matrix input
+            gl.getUniformLocation(this.shaderProgram, "transform");
+    }
+}
+
 var camera = new Camera(Eye, Center, Up);
 
 
@@ -222,18 +288,22 @@ function loadTriangles() {
 // setup the webGL shaders
 function setupShaders() {
 
+    /********************************************************/
+    /********************* Phong Shader *********************/
+    /********************************************************/
+
     // define fragment shader in essl using es6 template strings
-    var fShaderCode = `
+    var fPhongShaderCode = `
         precision mediump float;
         varying vec4 color;
 
         void main(void) {
-            gl_FragColor = color; // all fragments are white
+            gl_FragColor = color;
         }
     `;
 
     // define vertex shader in essl using es6 template strings
-    var vShaderCode = `
+    var vPhongShaderCode = `
         uniform vec3 ambient;
         uniform vec3 diffuse;
         uniform vec3 specular;
@@ -252,74 +322,68 @@ function setupShaders() {
         void main(void) {
             gl_Position = transform * vec4(vertexPosition, 1.0);
 
-            vec3 V = normalize(vertexPosition - eye);
-            vec3 L = normalize(vec3(-3.0, 1.0, -0.5) - vertexPosition);
+            vec3 V = normalize(eye - vertexPosition);
+            vec3 L = normalize(light - vertexPosition);
             vec3 R = normalize(2.0*vertexNormal*dot(vertexNormal, L) - L);
 
             color = vec4(ambient
                     + diffuse * abs(dot(vertexNormal, L))
-                    + specular * pow(dot(R, V), n)
+                    + specular * pow(abs(dot(R, V)), n)
                 , 1.0);
         }
     `;
 
-    try {
-        // console.log("fragment shader: "+fShaderCode);
-        var fShader = gl.createShader(gl.FRAGMENT_SHADER); // create frag shader
-        gl.shaderSource(fShader, fShaderCode); // attach code to shader
-        gl.compileShader(fShader); // compile the code for gpu execution
+    /**********************************************************/
+    /******************* Blinn Phong Shader *******************/
+    /**********************************************************/
 
-        // console.log("vertex shader: "+vShaderCode);
-        var vShader = gl.createShader(gl.VERTEX_SHADER); // create vertex shader
-        gl.shaderSource(vShader, vShaderCode); // attach code to shader
-        gl.compileShader(vShader); // compile the code for gpu execution
+    // define fragment shader in essl using es6 template strings
+    var fBlinnPhongShaderCode = `
+        precision mediump float;
+        varying vec4 color;
 
-        if (!gl.getShaderParameter(fShader, gl.COMPILE_STATUS)) { // bad frag shader compile
-            //gl.deleteShader(fShader);
-            throw "error during fragment shader compile: " + gl.getShaderInfoLog(fShader);
-        } else if (!gl.getShaderParameter(vShader, gl.COMPILE_STATUS)) { // bad vertex shader compile
-            //gl.deleteShader(vShader);
-            throw "error during vertex shader compile: " + gl.getShaderInfoLog(vShader);
-        } else { // no compile errors
-            var shaderProgram = gl.createProgram(); // create the single shader program
-            gl.attachShader(shaderProgram, fShader); // put frag shader in program
-            gl.attachShader(shaderProgram, vShader); // put vertex shader in program
-            gl.linkProgram(shaderProgram); // link program into gl context
+        void main(void) {
+            gl_FragColor = color;
+        }
+    `;
 
-            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) { // bad program link
-                throw "error during shader program linking: " + gl.getProgramInfoLog(shaderProgram);
-            } else { // no shader program link errors
-                gl.useProgram(shaderProgram); // activate shader program (frag and vert)
-                vertexPositionAttrib = // get pointer to vertex shader input
-                    gl.getAttribLocation(shaderProgram, "vertexPosition");
-                gl.enableVertexAttribArray(vertexPositionAttrib); // input to shader from array
-                vertexNormalAttrib = // get pointer to vertex shader input
-                    gl.getAttribLocation(shaderProgram, "vertexNormal");
-                gl.enableVertexAttribArray(vertexNormalAttrib); // input to shader from array
+    // define vertex shader in essl using es6 template strings
+    var vBlinnPhongShaderCode = `
+        uniform vec3 ambient;
+        uniform vec3 diffuse;
+        uniform vec3 specular;
+        uniform float n;
 
-                ambientMaterialUniform = // get pointer to ambient material input
-                    gl.getUniformLocation(shaderProgram, "ambient");
-                diffuseMaterialUniform = // get pointer to diffuse material input
-                    gl.getUniformLocation(shaderProgram, "diffuse");
-                specularMaterialUniform = // get pointer to specular material input
-                    gl.getUniformLocation(shaderProgram, "specular");
-                specularNMaterialUniform = // get pointer to specular material input
-                    gl.getUniformLocation(shaderProgram, "n");
+        uniform mat4 transform;
+        uniform vec3 eye;
+        uniform vec3 light;
 
-                eyeUniform = // get pointer to eye location input
-                    gl.getUniformLocation(shaderProgram, "eye");
-                lightUniform = // get pointer to light location input
-                    gl.getUniformLocation(shaderProgram, "light");
+        attribute vec3 vertexPosition;
+        attribute vec3 vertexNormal;
 
-                transformMatrixUniform = // get pointer to transform matrix input
-                    gl.getUniformLocation(shaderProgram, "transform");
-            } // end if no shader program link errors
-        } // end if no compile errors
-    } // end try
+        varying vec4 color;
+        varying vec3 vertPos;
 
-    catch (e) {
-        console.log(e);
-    } // end catch
+        void main(void) {
+            gl_Position = transform * vec4(vertexPosition, 1.0);
+
+            vec3 V = normalize(eye - vertexPosition);
+            vec3 L = normalize(light - vertexPosition);
+            vec3 H = normalize(L + V);
+
+            color = vec4(ambient
+                    + diffuse * abs(dot(vertexNormal, L))
+                    + specular * pow(abs(dot(H, vertexNormal)), n)
+                , 1.0);
+        }
+    `;
+
+    phongShader = new Shader(fPhongShaderCode, vPhongShaderCode);
+
+    blinnPhongShader = new Shader(fBlinnPhongShaderCode, vBlinnPhongShaderCode);
+
+    //default shader
+    shader = phongShader;
 } // end setup shaders
 
 // render the loaded model
@@ -348,7 +412,7 @@ async function main() {
     setupWebGL(); // set up the webGL environment
     loadTriangles(); // load in the triangles from tri file
     setupShaders(); // setup the webGL shaders
-
+    shader.activate();
     while(true) {
         handleKeys();
         renderTriangles(); // draw the triangles using webGL
@@ -397,21 +461,64 @@ function handleKeys() {
         
                 // Rotate
                 case 'A':
-                    camera.rotateY(ROT_DELTA);
-                    break;
-                case 'D':
                     camera.rotateY(-ROT_DELTA);
                     break;
-        
-                case 'W':
-                    camera.rotateX(ROT_DELTA);
+                case 'D':
+                    camera.rotateY(ROT_DELTA);
                     break;
-                case 'S':
+
+                case 'W':
                     camera.rotateX(-ROT_DELTA);
                     break;
-        
+                case 'S':
+                    camera.rotateX(ROT_DELTA);
+                    break;
+
+
+                case 'b':
+                    keys[code] = false;
+                    if(shader === phongShader) {
+                        console.log("Blinn-Phong Shading");
+                        shader = blinnPhongShader;
+                    }
+                    else {
+                        console.log("Phong Shading");
+                        shader = phongShader;
+                    }
+                    shader.activate();
+                    break;
+                case 'n':
+                    keys[code] = false;
+                    console.log("Exp");
+                    break;
+                case '1':
+                    keys[code] = false;
+                    console.log("1");
+                    break;
+                case '2':
+                    keys[code] = false;
+                    console.log("2");
+                    break;
+                case '3':
+                    keys[code] = false;
+                    console.log("3");
+                    break;
+
+                case ' ':
+                    keys[code] = false;
+                    console.log("space");
+                    break;
                 default:
-                    return;
+                    break;
+            }
+            // check arrow key codes
+            if(code == 37) {
+                //Left arrow
+                keys[code] = false;
+            }
+            else if(code == 39) {
+                //Right arrow
+                keys[code] = false;
             }
         }
     });
