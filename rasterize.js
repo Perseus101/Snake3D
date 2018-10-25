@@ -129,7 +129,18 @@ class Model {
             indexArray = indexArray.concat(indices[i]);
         }
 
-        this.material = material;
+        this.material = {
+            "ambient": vec3.fromValues(material.ambient[0], material.ambient[1], material.ambient[2]),
+            "diffuse": vec3.fromValues(material.diffuse[0], material.diffuse[1], material.diffuse[2]),
+            "specular": vec3.fromValues(material.specular[0], material.specular[1], material.specular[2]),
+            "n": material.n
+        };
+
+        this.material_mods = {
+            "ambient": 1,
+            "diffuse": 1,
+            "specular": 1
+        }
 
         this.modelMatrix = mat4.create();
         this.locationMatrix = mat4.create();
@@ -152,6 +163,34 @@ class Model {
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexArray), gl.STATIC_DRAW); // put indices in the buffer
     } //end Model constructor
 
+    incrementSpecularN() {
+        this.material.n++;
+        if(this.material.n > 20) {
+            this.material.n = 0;
+        }
+    }
+
+    incrementAmbient() {
+        this.material_mods.ambient += 0.1;
+        if(this.material_mods.ambient > 1) {
+            this.material_mods.ambient = 0;
+        }
+    }
+
+    incrementDiffuse() {
+        this.material_mods.diffuse += 0.1;
+        if(this.material_mods.diffuse > 1) {
+            this.material_mods.diffuse = 0;
+        }
+    }
+
+    incrementSpecular() {
+        this.material_mods.specular += 0.1;
+        if(this.material_mods.specular > 1) {
+            this.material_mods.specular = 0;
+        }
+    }
+
     /**
      * Draw the model
      * @param {bool} highlighted is this model highlighted
@@ -168,9 +207,18 @@ class Model {
 
         gl.uniformMatrix4fv(modelMatrixUniform, false, tempModelMatrix);
 
-        gl.uniform3fv(ambientMaterialUniform, this.material.ambient);
-        gl.uniform3fv(diffuseMaterialUniform, this.material.diffuse);
-        gl.uniform3fv(specularMaterialUniform, this.material.specular);
+        var ambient = vec3.create();
+        vec3.scale(ambient, this.material.ambient, this.material_mods.ambient);
+        gl.uniform3fv(ambientMaterialUniform, ambient);
+
+        var diffuse = vec3.create();
+        vec3.scale(diffuse, this.material.diffuse, this.material_mods.diffuse);
+        gl.uniform3fv(diffuseMaterialUniform, diffuse);
+
+        var specular = vec3.create();
+        vec3.scale(specular, this.material.specular, this.material_mods.specular);
+        gl.uniform3fv(specularMaterialUniform, specular);
+
         gl.uniform1f(specularNMaterialUniform, this.material.n);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer); // activate vertex buffer
@@ -310,10 +358,10 @@ function loadTriangles() {
         triBufferSize = 0;
 
         for (var whichSet = 0; whichSet < inputTriangles.length; whichSet++) {
-            objects.push(new Model(  inputTriangles[whichSet].vertices,
-                                        inputTriangles[whichSet].normals,
-                                        inputTriangles[whichSet].triangles,
-                                        inputTriangles[whichSet].material))
+            objects.push(new Model( inputTriangles[whichSet].vertices,
+                                    inputTriangles[whichSet].normals,
+                                    inputTriangles[whichSet].triangles,
+                                    inputTriangles[whichSet].material))
         } // end for each triangle set
     } // end if triangles found
 } // end load triangles
@@ -528,22 +576,6 @@ function handleKeys() {
                     }
                     shader.activate();
                     break;
-                case 'n':
-                    keys[code] = false;
-                    console.log("Exp");
-                    break;
-                case '1':
-                    keys[code] = false;
-                    console.log("1");
-                    break;
-                case '2':
-                    keys[code] = false;
-                    console.log("2");
-                    break;
-                case '3':
-                    keys[code] = false;
-                    console.log("3");
-                    break;
 
                 case ' ':
                     keys[code] = false;
@@ -568,6 +600,29 @@ function handleKeys() {
             }
             if(highlightedModel >= objects.length) {
                 highlightedModel = 0;
+            }
+            if(highlightedModel == -1) {
+                return;
+            }
+
+            //If there is a model highlighted
+            switch(char) {
+            case 'n':
+                keys[code] = false;
+                objects[highlightedModel].incrementSpecularN()
+                break;
+            case '1':
+                keys[code] = false;
+                objects[highlightedModel].incrementAmbient()
+                break;
+            case '2':
+                keys[code] = false;
+                objects[highlightedModel].incrementDiffuse()
+                break;
+            case '3':
+                keys[code] = false;
+                objects[highlightedModel].incrementSpecular()
+                break;
             }
         }
     });
