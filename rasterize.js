@@ -613,7 +613,7 @@ function keyup(event) {
 }
 
 const DELTA = 0.01;
-const ROT_DELTA = 0.01;
+const ROT_DELTA = 0.02;
 
 function handleKeys() {
     var shift = keys[16];
