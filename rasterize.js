@@ -5,7 +5,7 @@ const WIN_Z = 0;  // default graphics window z coord in world space
 const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in world space
 const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
 const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles.json"; // triangles file loc
-const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog3/spheres.json"; // spheres file loc
+const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog3/ellipsoids.json"; // spheres file loc
 var Eye = new vec3.fromValues(0.5, 0.5, -0.5); // default eye position in world space
 var Center = new vec3.fromValues((WIN_RIGHT-WIN_LEFT)/2, (WIN_TOP-WIN_BOTTOM)/2, WIN_Z); // default center position
 var Up = new vec3.fromValues(0, 1, 0);
@@ -392,7 +392,7 @@ class Shader {
         modelMatrixUniform = // get pointer to model matrix input
             gl.getUniformLocation(this.shaderProgram, "model");
         modelInvTransMatrixUniform = // get pointer to model matrix input
-            gl.getUniformLocation(this.shaderProgram, "modelInvTrans");
+            gl.getUniformLocation(this.shaderProgram, "invTransModel");
 
     }
 }
@@ -467,6 +467,35 @@ function loadTriangles() {
     } // end if triangles found
 } // end load triangles
 
+// read ellipsoids in, load them into webgl buffers
+function loadEllipsoids() {
+    var inputSpheres = getJSONFile(INPUT_SPHERES_URL, "spheres");
+    var sphereModel = getJSONFile("sphere_model.json", "sphere_model")
+    if (inputSpheres != String.null) {
+        triBufferSize = 0;
+
+        for (var whichSet = 0; whichSet < inputSpheres.length; whichSet++) {
+            var model = new Model( sphereModel.vertices,
+                sphereModel.normals,
+                sphereModel.triangles,
+                inputSpheres[whichSet]
+                );
+            var translate = mat4.create();
+            mat4.fromTranslation(translate,[inputSpheres[whichSet].x,
+                                            inputSpheres[whichSet].y,
+                                            inputSpheres[whichSet].z]);
+            var scale = mat4.create();
+            mat4.fromScaling(scale,[inputSpheres[whichSet].a,
+                                    inputSpheres[whichSet].b,
+                                    inputSpheres[whichSet].c]);
+            mat4.multiply(model.modelMatrix, scale, model.modelMatrix);
+            mat4.multiply(model.modelMatrix, translate, model.modelMatrix);
+
+            objects.push(model);
+        } // end for each triangle set
+    } // end if triangles found
+} // end load sphere model
+
 // setup the webGL shaders
 function setupShaders() {
 
@@ -490,13 +519,14 @@ function setupShaders() {
         varying vec3 normal;
 
         void main(void) {
+            vec3 normal_n = normalize(normal);
             vec3 V = normalize(eye - pos);
             vec3 L = normalize(light - pos);
-            vec3 R = normalize(2.0*normal*dot(normal, L) - L);
+            vec3 R = normalize(2.0*normal_n*dot(normal_n, L) - L);
 
             gl_FragColor = vec4(ambient
-                + diffuse * abs(dot(normal, L))
-                + specular * pow(abs(dot(R, V)), n)
+                + diffuse * max(dot(normal_n, L), 0.0)
+                + specular * pow(max(dot(R, V), 0.0), n)
             , 1.0);
         }
     `;
@@ -518,7 +548,7 @@ function setupShaders() {
             gl_Position = view * pos4;
 
             pos = pos4.xyz;
-            vec4 normal4 = model * vec4(vertexNormal, 1.0);
+            vec4 normal4 = invTransModel * vec4(vertexNormal, 1.0);
             normal = normalize(normal4.xyz);
         }
     `;
@@ -543,13 +573,14 @@ function setupShaders() {
         varying vec3 normal;
 
         void main(void) {
+            vec3 normal_n = normalize(normal);
             vec3 V = normalize(eye - pos);
             vec3 L = normalize(light - pos);
             vec3 H = normalize(L + V);
 
             gl_FragColor = vec4(ambient
-                + diffuse * abs(dot(normal, L))
-                + specular * pow(abs(dot(H, normal)), n)
+                + diffuse * max(dot(normal_n, L), 0.0)
+                + specular * pow(max(dot(H, normal_n), 0.0), n)
             , 1.0);
         }
     `;
@@ -571,8 +602,8 @@ function setupShaders() {
             gl_Position = view * pos4;
 
             pos = pos4.xyz;
-            vec4 normal4 = model * vec4(vertexNormal, 1.0);
-            normal =  normalize(normal4.xyz);
+            vec4 normal4 = invTransModel * vec4(vertexNormal, 1.0);
+            normal = normalize(normal4.xyz);
         }
     `;
 
@@ -609,6 +640,8 @@ function sleep(ms) {
 async function main() {
     setupWebGL(); // set up the webGL environment
     loadTriangles(); // load in the triangles from tri file
+    loadEllipsoids(); // load in the triangles from tri file
+
     setupShaders(); // setup the webGL shaders
     shader.activate();
     while(true) {
