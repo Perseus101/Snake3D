@@ -97,6 +97,26 @@ class Camera {
     }
 
     /**
+     * Return viewing transform matrix without translation
+     */
+    getTransformNT() {
+        var transform = mat4.clone(this.transform);
+        transform[12] = 0;
+        transform[13] = 0;
+        transform[14] = 0;
+        return transform;
+    }
+
+    /**
+     * Return viewing transform matrix without translation
+     */
+    getTransformInvNT() {
+        var inv = this.getTransformNT()
+        mat4.invert(inv, inv);
+        return inv;
+    }
+
+    /**
      * Return eye position
      */
     getEye() {
@@ -143,6 +163,7 @@ class Model {
         }
 
         this.modelMatrix = mat4.create();
+        this.modelRotationMatrix = mat4.create();
         this.locationMatrix = mat4.create();
 
         vec3.scale(center, center, -1/vertices.length);
@@ -192,6 +213,79 @@ class Model {
     }
 
     /**
+     * Translate the model in the current orientation
+     * @param {vec3} delta the direction to move relative to
+     *                      the camera's current orientation
+     */
+    translate(delta) {
+        var translate = mat4.create();
+        mat4.fromTranslation(translate, delta);
+
+        // Transform the translation into the current view
+        var op = mat4.create();
+        mat4.multiply(op, camera.getTransform(), op);
+        mat4.multiply(op, translate, op);
+        mat4.multiply(op, camera.getTransformInv(), op);
+
+        // Add the new translation
+        mat4.multiply(this.modelMatrix, op, this.modelMatrix);
+    }
+
+    /**
+     * Rotate the model around the X axis
+     * @param {float} delta the rotation delta in radians
+     */
+    rotateX(delta) {
+        var rotate = mat4.create();
+        mat4.fromXRotation(rotate, delta);
+
+        // Transform the rotation into the current view
+        var op = mat4.create();
+        mat4.multiply(op, camera.getTransformNT(), op);
+        mat4.multiply(op, rotate, op);
+        mat4.multiply(op, camera.getTransformInvNT(), op);
+
+        // Add the new rotation
+        mat4.multiply(this.modelRotationMatrix, op, this.modelRotationMatrix);
+    }
+
+    /**
+     * Rotate the model around the Y axis
+     * @param {float} delta the rotation delta in radians
+     */
+    rotateY(delta) {
+        var rotate = mat4.create();
+        mat4.fromYRotation(rotate, delta);
+
+        // Transform the rotation into the current view
+        var op = mat4.create();
+        mat4.multiply(op, camera.getTransformNT(), op);
+        mat4.multiply(op, rotate, op);
+        mat4.multiply(op, camera.getTransformInvNT(), op);
+
+        // Add the new rotation
+        mat4.multiply(this.modelRotationMatrix, op, this.modelRotationMatrix);
+    }
+
+    /**
+     * Rotate the model around the Y axis
+     * @param {float} delta the rotation delta in radians
+     */
+    rotateZ(delta) {
+        var rotate = mat4.create();
+        mat4.fromZRotation(rotate, delta);
+
+        // Transform the rotation into the current view
+        var op = mat4.create();
+        mat4.multiply(op, camera.getTransformNT(), op);
+        mat4.multiply(op, rotate, op);
+        mat4.multiply(op, camera.getTransformInvNT(), op);
+
+        // Add the new rotation
+        mat4.multiply(this.modelRotationMatrix, op, this.modelRotationMatrix);
+    }
+
+    /**
      * Draw the model
      * @param {bool} highlighted is this model highlighted
      */
@@ -203,6 +297,7 @@ class Model {
             mat4.fromScaling(scale, vec3.fromValues(1.2, 1.2, 1.2));
             mat4.multiply(tempModelMatrix, scale, tempModelMatrix);
         }
+        mat4.multiply(tempModelMatrix, this.modelRotationMatrix, tempModelMatrix);
         mat4.multiply(tempModelMatrix, this.modelMatrix, tempModelMatrix);
 
         gl.uniformMatrix4fv(modelMatrixUniform, false, tempModelMatrix);
@@ -526,6 +621,7 @@ function handleKeys() {
         if( keys[code] ) {
             var char = String.fromCharCode(code);
             if(!shift) { char = char.toLowerCase(); }
+            if(shift && char === ';') { char = ':'; }
             switch(char) {
                 // Translation
                 case 'a':
@@ -622,6 +718,46 @@ function handleKeys() {
             case '3':
                 keys[code] = false;
                 objects[highlightedModel].incrementSpecular()
+                break;
+
+            // Translations
+            case 'k':
+                objects[highlightedModel].translate(vec3.fromValues(-DELTA, 0, 0));
+                break;
+            case ';':
+                objects[highlightedModel].translate(vec3.fromValues(DELTA, 0, 0));
+                break;
+            case 'o':
+                objects[highlightedModel].translate(vec3.fromValues(0, 0, -DELTA));
+                break;
+            case 'l':
+                objects[highlightedModel].translate(vec3.fromValues(0, 0, DELTA));
+                break;
+            case 'i':
+                objects[highlightedModel].translate(vec3.fromValues(0, -DELTA, 0));
+                break;
+            case 'p':
+                objects[highlightedModel].translate(vec3.fromValues(0, DELTA, 0));
+                break;
+
+            // Rotations
+            case 'K':
+                objects[highlightedModel].rotateY(ROT_DELTA);
+                break;
+            case ':':
+                objects[highlightedModel].rotateY(-ROT_DELTA);
+                break;
+            case 'O':
+                objects[highlightedModel].rotateX(ROT_DELTA);
+                break;
+            case 'L':
+                objects[highlightedModel].rotateX(-ROT_DELTA);
+                break;
+            case 'I':
+                objects[highlightedModel].rotateZ(ROT_DELTA);
+                break;
+            case 'P':
+                objects[highlightedModel].rotateZ(-ROT_DELTA);
                 break;
             }
         }
