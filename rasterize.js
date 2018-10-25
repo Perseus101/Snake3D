@@ -16,6 +16,8 @@ var phongShader = null;
 var blinnPhongShader = null;
 var shader = null;
 
+var highlightedModel = -1;
+
 /* webgl globals */
 var canvas;
 var gl = null; // the all powerful gl object. It's all here folks!
@@ -29,7 +31,8 @@ var specularMaterialUniform; // where to put specular material
 var specularNMaterialUniform; // where to put specular n material
 var eyeUniform; // where to put eye position
 var lightUniform; // where to put light position
-var transformMatrixUniform; // where to put position transform matrix
+var viewMatrixUniform; // where to put position transform matrix
+var modelMatrixUniform; // where to put position transform matrix
 
 /** Camera class */
 class Camera {
@@ -106,12 +109,16 @@ class Camera {
 class Model {
     constructor(vertices, normals, indices, material) {
         this.triBufferSize = 0;
+        var center = vec3.create();
         var coordArray = [];
         var normalArray = [];
         var indexArray = [];
         // set up the vertex coord array
         for (var i = 0; i < vertices.length; i++) {
             coordArray = coordArray.concat(vertices[i]);
+            center[0] += vertices[i][0];
+            center[1] += vertices[i][1];
+            center[2] += vertices[i][2];
         }
         for (var i = 0; i < normals.length; i++) {
             normalArray = normalArray.concat(normals[i]);
@@ -123,6 +130,14 @@ class Model {
         }
 
         this.material = material;
+
+        this.modelMatrix = mat4.create();
+        this.locationMatrix = mat4.create();
+
+        vec3.scale(center, center, -1/vertices.length);
+        mat4.fromTranslation(this.locationMatrix, center); //translate the model to the origin
+        vec3.scale(center, center, -1);
+        mat4.fromTranslation(this.modelMatrix, center); //translate the model to its location
 
         this.vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer); // activate that buffer
@@ -137,7 +152,22 @@ class Model {
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexArray), gl.STATIC_DRAW); // put indices in the buffer
     } //end Model constructor
 
-    draw() {
+    /**
+     * Draw the model
+     * @param {bool} highlighted is this model highlighted
+     */
+    draw(highlighted) {
+        var tempModelMatrix = mat4.create();
+        mat4.multiply(tempModelMatrix, this.locationMatrix, tempModelMatrix);
+        if(highlighted) {
+            var scale = mat4.create();
+            mat4.fromScaling(scale, vec3.fromValues(1.2, 1.2, 1.2));
+            mat4.multiply(tempModelMatrix, scale, tempModelMatrix);
+        }
+        mat4.multiply(tempModelMatrix, this.modelMatrix, tempModelMatrix);
+
+        gl.uniformMatrix4fv(modelMatrixUniform, false, tempModelMatrix);
+
         gl.uniform3fv(ambientMaterialUniform, this.material.ambient);
         gl.uniform3fv(diffuseMaterialUniform, this.material.diffuse);
         gl.uniform3fv(specularMaterialUniform, this.material.specular);
@@ -210,8 +240,11 @@ class Shader {
         lightUniform = // get pointer to light location input
             gl.getUniformLocation(this.shaderProgram, "light");
 
-        transformMatrixUniform = // get pointer to transform matrix input
-            gl.getUniformLocation(this.shaderProgram, "transform");
+        viewMatrixUniform = // get pointer to view matrix input
+            gl.getUniformLocation(this.shaderProgram, "view");
+        modelMatrixUniform = // get pointer to model matrix input
+            gl.getUniformLocation(this.shaderProgram, "model");
+
     }
 }
 
@@ -309,9 +342,11 @@ function setupShaders() {
         uniform vec3 specular;
         uniform float n;
 
-        uniform mat4 transform;
         uniform vec3 eye;
         uniform vec3 light;
+
+        uniform mat4 view;
+        uniform mat4 model;
 
         attribute vec3 vertexPosition;
         attribute vec3 vertexNormal;
@@ -320,10 +355,12 @@ function setupShaders() {
         varying vec3 vertPos;
 
         void main(void) {
-            gl_Position = transform * vec4(vertexPosition, 1.0);
+            vec4 pos4 = model * vec4(vertexPosition, 1.0);
+            gl_Position = view * pos4;
 
-            vec3 V = normalize(eye - vertexPosition);
-            vec3 L = normalize(light - vertexPosition);
+            vec3 pos = pos4.xyz;
+            vec3 V = normalize(eye - pos);
+            vec3 L = normalize(light - pos);
             vec3 R = normalize(2.0*vertexNormal*dot(vertexNormal, L) - L);
 
             color = vec4(ambient
@@ -354,9 +391,11 @@ function setupShaders() {
         uniform vec3 specular;
         uniform float n;
 
-        uniform mat4 transform;
         uniform vec3 eye;
         uniform vec3 light;
+
+        uniform mat4 view;
+        uniform mat4 model;
 
         attribute vec3 vertexPosition;
         attribute vec3 vertexNormal;
@@ -365,10 +404,12 @@ function setupShaders() {
         varying vec3 vertPos;
 
         void main(void) {
-            gl_Position = transform * vec4(vertexPosition, 1.0);
+            vec4 pos4 = model * vec4(vertexPosition, 1.0);
+            gl_Position = view * pos4;
 
-            vec3 V = normalize(eye - vertexPosition);
-            vec3 L = normalize(light - vertexPosition);
+            vec3 pos = pos4.xyz;
+            vec3 V = normalize(eye - pos);
+            vec3 L = normalize(light - pos);
             vec3 H = normalize(L + V);
 
             color = vec4(ambient
@@ -394,12 +435,12 @@ function renderTriangles() {
 
     mat4.multiply(transform, transform, camera.getTransform());
 
-    gl.uniformMatrix4fv(transformMatrixUniform, false, transform);
+    gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
     gl.uniform3fv(eyeUniform, camera.getEye());
     gl.uniform3fv(lightUniform, light);
 
     for(var i=0; i<objects.length; i++) {
-        objects[i].draw();
+        objects[i].draw((i===highlightedModel));
     }
 } // end render triangles
 
@@ -506,7 +547,7 @@ function handleKeys() {
 
                 case ' ':
                     keys[code] = false;
-                    console.log("space");
+                    highlightedModel = -1;
                     break;
                 default:
                     break;
@@ -515,10 +556,18 @@ function handleKeys() {
             if(code == 37) {
                 //Left arrow
                 keys[code] = false;
+                highlightedModel--;
             }
             else if(code == 39) {
                 //Right arrow
                 keys[code] = false;
+                highlightedModel++;
+            }
+            if(highlightedModel < -1) {
+                highlightedModel = -1;
+            }
+            if(highlightedModel >= objects.length) {
+                highlightedModel = 0;
             }
         }
     });
