@@ -99,7 +99,7 @@ class Camera {
     }
 }
 
-class Triangle {
+class Model {
     constructor(vertices, normals, indices, material) {
         this.triBufferSize = 0;
         var coordArray = [];
@@ -131,7 +131,7 @@ class Triangle {
         this.indexBuffer = gl.createBuffer(); // init empty index buffer
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer); // activate the buffer
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexArray), gl.STATIC_DRAW); // put indices in the buffer
-    } //end Triangle constructor
+    } //end Model constructor
 
     draw() {
         gl.uniform3fv(ambientMaterialUniform, this.material.ambient);
@@ -147,7 +147,7 @@ class Triangle {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer); // activate index buffer
         gl.drawElements(gl.TRIANGLES, this.triBufferSize, gl.UNSIGNED_SHORT, 0);
     }
-}//end Triangle class
+}//end Model class
 
 var camera = new Camera(Eye, Center, Up);
 
@@ -211,7 +211,7 @@ function loadTriangles() {
         triBufferSize = 0;
 
         for (var whichSet = 0; whichSet < inputTriangles.length; whichSet++) {
-            objects.push(new Triangle(  inputTriangles[whichSet].vertices,
+            objects.push(new Model(  inputTriangles[whichSet].vertices,
                                         inputTriangles[whichSet].normals,
                                         inputTriangles[whichSet].triangles,
                                         inputTriangles[whichSet].material))
