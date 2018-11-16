@@ -6,9 +6,25 @@
 
     <script type="text/javascript" src="gl-matrix-min.js"></script>
     <script type="text/javascript" src="rasterize.js"></script>
+    <style>
+    #myWebGLCanvas {
+        position: absolute;
+        left: 0px;
+        top: 0px;
+        z-index: 10;
+    }
+
+    #myImageCanvas {
+        position: absolute;
+        left: 0px;
+        top: 0px;
+        z-index: 0;
+    }
+  </style>
   </head>
 
   <body onload="main();" onkeydown="keydown(event);" onkeyup="keyup(event);">
+    <canvas id="myImageCanvas" width="512" height="512"></canvas>
     <canvas id="myWebGLCanvas" width="512" height="512"></canvas>
   </body>
 </html>
