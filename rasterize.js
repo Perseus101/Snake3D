@@ -14,8 +14,8 @@ var Up = new vec3.fromValues(0, 1, 0);
 
 var light = new vec3.fromValues(-3.0, 1.0, -0.5); // default light position in world space
 
-var phongShader = null;
-var blinnPhongShader = null;
+var modulateShader = null;
+var replaceShader = null;
 var shader = null;
 
 var highlightedModel = -1;
@@ -137,7 +137,7 @@ class Model {
         var center = vec3.create();
         var coordArray = [];
         var normalArray = normals.flat();
-        var textureArray = uvs.flat();
+        var textureArray = [];
         var indexArray = indices.flat();
         // set up the vertex coord array
         for (var i = 0; i < vertices.length; i++) {
@@ -147,6 +147,11 @@ class Model {
             center[2] += vertices[i][2];
         }
 
+        for (var i = 0; i < uvs.length; i++) {
+            var uv = uvs[i];
+            textureArray.push(uv[0]);
+            textureArray.push(1-uv[1]);
+        }
         this.triBufferSize += indices.length * 3;
 
         this.material = {
@@ -313,24 +318,24 @@ class Model {
         mat4.transpose(tempModelMatrix, tempModelMatrix);
         gl.uniformMatrix4fv(modelInvTransMatrixUniform, false, tempModelMatrix);
 
-        // var ambient = vec3.create();
-        // vec3.scale(ambient, this.material.ambient, this.material_mods.ambient);
-        // gl.uniform3fv(ambientMaterialUniform, ambient);
+        var ambient = vec3.create();
+        vec3.scale(ambient, this.material.ambient, this.material_mods.ambient);
+        gl.uniform3fv(ambientMaterialUniform, ambient);
 
-        // var diffuse = vec3.create();
-        // vec3.scale(diffuse, this.material.diffuse, this.material_mods.diffuse);
-        // gl.uniform3fv(diffuseMaterialUniform, diffuse);
+        var diffuse = vec3.create();
+        vec3.scale(diffuse, this.material.diffuse, this.material_mods.diffuse);
+        gl.uniform3fv(diffuseMaterialUniform, diffuse);
 
-        // var specular = vec3.create();
-        // vec3.scale(specular, this.material.specular, this.material_mods.specular);
-        // gl.uniform3fv(specularMaterialUniform, specular);
+        var specular = vec3.create();
+        vec3.scale(specular, this.material.specular, this.material_mods.specular);
+        gl.uniform3fv(specularMaterialUniform, specular);
 
-        // gl.uniform1f(specularNMaterialUniform, this.material.n);
+        gl.uniform1f(specularNMaterialUniform, this.material.n);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer); // activate vertex buffer
         gl.vertexAttribPointer(vertexPositionAttrib, 3, gl.FLOAT, false, 0, 0); // feed
-        //gl.bindBuffer(gl.ARRAY_BUFFER, this.normalBuffer); // activate normal buffer
-        //gl.vertexAttribPointer(vertexNormalAttrib, 3, gl.FLOAT, false, 0, 0); // feed
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.normalBuffer); // activate normal buffer
+        gl.vertexAttribPointer(vertexNormalAttrib, 3, gl.FLOAT, false, 0, 0); // feed
         gl.bindBuffer(gl.ARRAY_BUFFER, this.textureBuffer); // activate texture buffer
         gl.vertexAttribPointer(textureCoordinateAttrib, 2, gl.FLOAT, false, 0, 0); // feed
 
@@ -385,7 +390,7 @@ class Shader {
         gl.enableVertexAttribArray(vertexPositionAttrib); // input to shader from array
         vertexNormalAttrib = // get pointer to vertex shader input
             gl.getAttribLocation(this.shaderProgram, "vertexNormal");
-        //gl.enableVertexAttribArray(vertexNormalAttrib); // input to shader from array
+        gl.enableVertexAttribArray(vertexNormalAttrib); // input to shader from array
         textureCoordinateAttrib = // get pointer to vertex shader input
             gl.getAttribLocation(this.shaderProgram, "vertexTextureCoord");
         gl.enableVertexAttribArray(textureCoordinateAttrib); // input to shader from array
@@ -575,12 +580,12 @@ function loadEllipsoids() {
 // setup the webGL shaders
 function setupShaders() {
 
-    /********************************************************/
-    /********************* Phong Shader *********************/
-    /********************************************************/
+    /*********************************************************/
+    /**************** Texture modulating Shader **************/
+    /*********************************************************/
 
-    // define fragment shader in essl using es6 template strings
-    var fPhongShaderCode = `#version 100
+    // shade fragments using blinn-phong and texture modulation
+    var fModulateShaderCode = `#version 100
         precision mediump float;
 
         uniform vec3 ambient;
@@ -598,84 +603,22 @@ function setupShaders() {
         varying vec2 textureCoord;
 
         void main(void) {
-            vec3 normal_n = normalize(normal);
-            vec3 V = normalize(eye - pos);
-            vec3 L = normalize(light - pos);
-            vec3 R = normalize(2.0*normal_n*dot(normal_n, L) - L);
-
-            vec4 lightingColor = vec4(ambient
-                + diffuse * max(dot(normal_n, L), 0.0)
-                + specular * pow(max(dot(R, V), 0.0), n)
-            , 1.0);
-            vec4 textureColor = texture2D(textureSampler, textureCoord);
-            gl_FragColor = textureColor;
-        }
-    `;
-
-    // define vertex shader in essl using es6 template strings
-    var vPhongShaderCode = `#version 100
-        uniform mat4 view;
-        uniform mat4 model;
-        uniform mat4 invTransModel;
-
-        attribute vec3 vertexPosition;
-        attribute vec3 vertexNormal;
-        attribute vec2 vertexTextureCoord;
-
-        varying vec3 pos;
-        varying vec3 normal;
-        varying vec2 textureCoord;
-
-        void main(void) {
-            vec4 pos4 = model * vec4(vertexPosition, 1.0);
-            vec4 normal4 = invTransModel * vec4(vertexNormal, 1.0);
-
-            gl_Position = view * pos4;
-            pos = pos4.xyz;
-            normal = normalize(normal4.xyz);
-            textureCoord = vertexTextureCoord;
-        }
-    `;
-
-    /**********************************************************/
-    /******************* Blinn Phong Shader *******************/
-    /**********************************************************/
-
-    // define fragment shader in essl using es6 template strings
-    var fBlinnPhongShaderCode = `#version 100
-        precision mediump float;
-
-        uniform vec3 ambient;
-        uniform vec3 diffuse;
-        uniform vec3 specular;
-        uniform float n;
-
-        uniform vec3 eye;
-        uniform vec3 light;
-
-        uniform sampler2D textureSampler;
-
-        varying vec3 pos;
-        varying vec3 normal;
-        varying vec2 textureCoord;
-
-        void main(void) {
-            vec3 normal_n = normalize(normal);
+            vec3 N = normalize(normal);
             vec3 V = normalize(eye - pos);
             vec3 L = normalize(light - pos);
             vec3 H = normalize(L + V);
 
             vec4 lightingColor = vec4(ambient
-                + diffuse * max(dot(normal_n, L), 0.0)
-                + specular * pow(max(dot(H, normal_n), 0.0), n)
+                + diffuse * max(dot(N, L), 0.0)
+                + specular * pow(max(dot(H, N), 0.0), n)
             , 1.0);
             vec4 textureColor = texture2D(textureSampler, textureCoord);
-            gl_FragColor = textureColor;
+            gl_FragColor = lightingColor * textureColor;
         }
     `;
 
     // define vertex shader in essl using es6 template strings
-    var vBlinnPhongShaderCode = `#version 100
+    var vModulateShaderCode = `#version 100
         uniform mat4 view;
         uniform mat4 model;
         uniform mat4 invTransModel;
@@ -699,12 +642,74 @@ function setupShaders() {
         }
     `;
 
-    phongShader = new Shader(fPhongShaderCode, vPhongShaderCode);
+    /*********************************************************/
+    /**************** Texture replacing Shader **************/
+    /*********************************************************/
 
-    blinnPhongShader = new Shader(fBlinnPhongShaderCode, vBlinnPhongShaderCode);
+    // shade fragments using blinn-phong and texture replace
+    var fReplaceShaderCode = `#version 100
+        precision mediump float;
+
+        uniform vec3 ambient;
+        uniform vec3 diffuse;
+        uniform vec3 specular;
+        uniform float n;
+
+        uniform vec3 eye;
+        uniform vec3 light;
+
+        uniform sampler2D textureSampler;
+
+        varying vec3 pos;
+        varying vec3 normal;
+        varying vec2 textureCoord;
+
+        void main(void) {
+            vec3 N = normalize(normal);
+            vec3 V = normalize(eye - pos);
+            vec3 L = normalize(light - pos);
+            vec3 H = normalize(L + V);
+
+            vec4 lightingColor = vec4(ambient
+                + diffuse * max(dot(N, L), 0.0)
+                + specular * pow(max(dot(H, N), 0.0), n)
+            , 1.0);
+            vec4 textureColor = texture2D(textureSampler, textureCoord);
+            gl_FragColor = textureColor;
+        }
+    `;
+
+    // define vertex shader in essl using es6 template strings
+    var vReplaceShaderCode = `#version 100
+        uniform mat4 view;
+        uniform mat4 model;
+        uniform mat4 invTransModel;
+
+        attribute vec3 vertexPosition;
+        attribute vec3 vertexNormal;
+        attribute vec2 vertexTextureCoord;
+
+        varying vec3 pos;
+        varying vec3 normal;
+        varying vec2 textureCoord;
+
+        void main(void) {
+            vec4 pos4 = model * vec4(vertexPosition, 1.0);
+            vec4 normal4 = invTransModel * vec4(vertexNormal, 1.0);
+
+            gl_Position = view * pos4;
+            pos = pos4.xyz;
+            normal = normalize(normal4.xyz);
+            textureCoord = vertexTextureCoord;
+        }
+    `;
+
+    modulateShader = new Shader(fModulateShaderCode, vModulateShaderCode);
+
+    replaceShader = new Shader(fReplaceShaderCode, vReplaceShaderCode);
 
     //default shader
-    shader = phongShader;
+    shader = modulateShader;
 } // end setup shaders
 
 // render the loaded model
@@ -801,13 +806,11 @@ function handleKeys() {
 
                 case 'b':
                     keys[code] = false;
-                    if(shader === phongShader) {
-                        console.log("Blinn-Phong Shading");
-                        shader = blinnPhongShader;
+                    if(shader === modulateShader) {
+                        shader = replaceShader;
                     }
                     else {
-                        console.log("Phong Shading");
-                        shader = phongShader;
+                        shader = modulateShader;
                     }
                     shader.activate();
                     break;
