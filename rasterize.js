@@ -26,6 +26,7 @@ var gl = null; // the all powerful gl object. It's all here folks!
 var objects = [];
 var vertexPositionAttrib; // where to put position for vertex shader
 var vertexNormalAttrib; // where to put normals for vertex shader
+var textureCoordinateAttrib; // where to put texture coordinates for vertex shader
 
 var ambientMaterialUniform; // where to put ambient material
 var diffuseMaterialUniform; // where to put diffuse material
@@ -33,6 +34,7 @@ var specularMaterialUniform; // where to put specular material
 var specularNMaterialUniform; // where to put specular n material
 var eyeUniform; // where to put eye position
 var lightUniform; // where to put light position
+var samplerUniform; // where to put texture sampler
 var viewMatrixUniform; // where to put position transform matrix
 var modelMatrixUniform; // where to put model transform matrix
 var modelInvTransMatrixUniform; // where to put the inverse transpose of the model transform matrix
@@ -130,12 +132,13 @@ class Camera {
 }
 
 class Model {
-    constructor(vertices, normals, indices, material) {
+    constructor(vertices, normals, uvs, indices, material) {
         this.triBufferSize = 0;
         var center = vec3.create();
         var coordArray = [];
-        var normalArray = [];
-        var indexArray = [];
+        var normalArray = normals.flat();
+        var textureArray = uvs.flat();
+        var indexArray = indices.flat();
         // set up the vertex coord array
         for (var i = 0; i < vertices.length; i++) {
             coordArray = coordArray.concat(vertices[i]);
@@ -143,20 +146,16 @@ class Model {
             center[1] += vertices[i][1];
             center[2] += vertices[i][2];
         }
-        for (var i = 0; i < normals.length; i++) {
-            normalArray = normalArray.concat(normals[i]);
-        }
 
         this.triBufferSize += indices.length * 3;
-        for (var i = 0; i < indices.length; i++) {
-            indexArray = indexArray.concat(indices[i]);
-        }
 
         this.material = {
             "ambient": vec3.fromValues(material.ambient[0], material.ambient[1], material.ambient[2]),
             "diffuse": vec3.fromValues(material.diffuse[0], material.diffuse[1], material.diffuse[2]),
             "specular": vec3.fromValues(material.specular[0], material.specular[1], material.specular[2]),
-            "n": material.n
+            "n": material.n,
+            "alpha": material.alpha,
+            "texture": getTextureFile(material.texture)
         };
 
         this.material_mods = {
@@ -182,6 +181,10 @@ class Model {
         this.normalBuffer = gl.createBuffer(); // init empty vertex coord buffer
         gl.bindBuffer(gl.ARRAY_BUFFER, this.normalBuffer); // activate that buffer
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normalArray), gl.STATIC_DRAW); // coords to that buffer
+
+        this.textureBuffer = gl.createBuffer(); // init empty texture coord buffer
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.textureBuffer); // activate that buffer
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureArray), gl.STATIC_DRAW); // coords to that buffer
 
         this.indexBuffer = gl.createBuffer(); // init empty index buffer
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer); // activate the buffer
@@ -310,26 +313,34 @@ class Model {
         mat4.transpose(tempModelMatrix, tempModelMatrix);
         gl.uniformMatrix4fv(modelInvTransMatrixUniform, false, tempModelMatrix);
 
-        var ambient = vec3.create();
-        vec3.scale(ambient, this.material.ambient, this.material_mods.ambient);
-        gl.uniform3fv(ambientMaterialUniform, ambient);
+        // var ambient = vec3.create();
+        // vec3.scale(ambient, this.material.ambient, this.material_mods.ambient);
+        // gl.uniform3fv(ambientMaterialUniform, ambient);
 
-        var diffuse = vec3.create();
-        vec3.scale(diffuse, this.material.diffuse, this.material_mods.diffuse);
-        gl.uniform3fv(diffuseMaterialUniform, diffuse);
+        // var diffuse = vec3.create();
+        // vec3.scale(diffuse, this.material.diffuse, this.material_mods.diffuse);
+        // gl.uniform3fv(diffuseMaterialUniform, diffuse);
 
-        var specular = vec3.create();
-        vec3.scale(specular, this.material.specular, this.material_mods.specular);
-        gl.uniform3fv(specularMaterialUniform, specular);
+        // var specular = vec3.create();
+        // vec3.scale(specular, this.material.specular, this.material_mods.specular);
+        // gl.uniform3fv(specularMaterialUniform, specular);
 
-        gl.uniform1f(specularNMaterialUniform, this.material.n);
+        // gl.uniform1f(specularNMaterialUniform, this.material.n);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer); // activate vertex buffer
         gl.vertexAttribPointer(vertexPositionAttrib, 3, gl.FLOAT, false, 0, 0); // feed
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.normalBuffer); // activate vertex buffer
-        gl.vertexAttribPointer(vertexNormalAttrib, 3, gl.FLOAT, false, 0, 0); // feed
+        //gl.bindBuffer(gl.ARRAY_BUFFER, this.normalBuffer); // activate normal buffer
+        //gl.vertexAttribPointer(vertexNormalAttrib, 3, gl.FLOAT, false, 0, 0); // feed
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.textureBuffer); // activate texture buffer
+        gl.vertexAttribPointer(textureCoordinateAttrib, 2, gl.FLOAT, false, 0, 0); // feed
 
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer); // activate index buffer
+
+        // Activate texture
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.material.texture);
+        gl.uniform1i(samplerUniform, 0);
+
         gl.drawElements(gl.TRIANGLES, this.triBufferSize, gl.UNSIGNED_SHORT, 0);
     }
 }//end Model class
@@ -344,7 +355,6 @@ class Shader {
         this.vShader = gl.createShader(gl.VERTEX_SHADER); // create vertex shader
         gl.shaderSource(this.vShader, vShaderCode); // attach code to shader
         gl.compileShader(this.vShader); // compile the code for gpu execution
-
         if (!gl.getShaderParameter(this.fShader, gl.COMPILE_STATUS)) { // bad frag shader compile
             this.is_valid = false;
             console.log("error during fragment shader compile: " + gl.getShaderInfoLog(this.fShader));
@@ -375,7 +385,10 @@ class Shader {
         gl.enableVertexAttribArray(vertexPositionAttrib); // input to shader from array
         vertexNormalAttrib = // get pointer to vertex shader input
             gl.getAttribLocation(this.shaderProgram, "vertexNormal");
-        gl.enableVertexAttribArray(vertexNormalAttrib); // input to shader from array
+        //gl.enableVertexAttribArray(vertexNormalAttrib); // input to shader from array
+        textureCoordinateAttrib = // get pointer to vertex shader input
+            gl.getAttribLocation(this.shaderProgram, "vertexTextureCoord");
+        gl.enableVertexAttribArray(textureCoordinateAttrib); // input to shader from array
 
         ambientMaterialUniform = // get pointer to ambient material input
             gl.getUniformLocation(this.shaderProgram, "ambient");
@@ -390,6 +403,9 @@ class Shader {
             gl.getUniformLocation(this.shaderProgram, "eye");
         lightUniform = // get pointer to light location input
             gl.getUniformLocation(this.shaderProgram, "light");
+
+        samplerUniform = // get pointer to texture sampler location
+            gl.getUniformLocation(this.shaderProgram, "textureSampler");
 
         viewMatrixUniform = // get pointer to view matrix input
             gl.getUniformLocation(this.shaderProgram, "view");
@@ -432,6 +448,48 @@ function getJSONFile(url, descr) {
         return (String.null);
     }
 } // end get input spheres
+
+/**
+ * Check if value is a power of 2
+ *
+ * From https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Using_textures_in_WebGL
+ * @param {number} value
+ */
+function isPowerOf2(value) {
+    return (value & (value - 1)) == 0;
+}
+
+/**
+ * Load texture from url
+ * @param {String} url
+ */
+function getTextureFile(url) {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    // Insert temporary single pixel while real texture is loaded
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 255, 255, 255]));
+
+    // Load image
+    var image = new Image();
+    image.crossOrigin = "Anonymous";
+    image.onload = function() {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+
+        // If webgl can generate mipmaps
+        if (isPowerOf2(image.width) && isPowerOf2(image.height)) {
+            gl.generateMipmap(gl.TEXTURE_2D);
+        } else {
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        }
+    };
+    image.src = url;
+
+    return texture;
+}
 
 // set up the webGL environment
 function setupWebGL() {
@@ -478,6 +536,7 @@ function loadTriangles() {
         for (var whichSet = 0; whichSet < inputTriangles.length; whichSet++) {
             objects.push(new Model( inputTriangles[whichSet].vertices,
                                     inputTriangles[whichSet].normals,
+                                    inputTriangles[whichSet].uvs,
                                     inputTriangles[whichSet].triangles,
                                     inputTriangles[whichSet].material))
         } // end for each triangle set
@@ -532,8 +591,11 @@ function setupShaders() {
         uniform vec3 eye;
         uniform vec3 light;
 
+        uniform sampler2D textureSampler;
+
         varying vec3 pos;
         varying vec3 normal;
+        varying vec2 textureCoord;
 
         void main(void) {
             vec3 normal_n = normalize(normal);
@@ -541,10 +603,12 @@ function setupShaders() {
             vec3 L = normalize(light - pos);
             vec3 R = normalize(2.0*normal_n*dot(normal_n, L) - L);
 
-            gl_FragColor = vec4(ambient
+            vec4 lightingColor = vec4(ambient
                 + diffuse * max(dot(normal_n, L), 0.0)
                 + specular * pow(max(dot(R, V), 0.0), n)
             , 1.0);
+            vec4 textureColor = texture2D(textureSampler, textureCoord);
+            gl_FragColor = textureColor;
         }
     `;
 
@@ -556,17 +620,20 @@ function setupShaders() {
 
         attribute vec3 vertexPosition;
         attribute vec3 vertexNormal;
+        attribute vec2 vertexTextureCoord;
 
         varying vec3 pos;
         varying vec3 normal;
+        varying vec2 textureCoord;
 
         void main(void) {
             vec4 pos4 = model * vec4(vertexPosition, 1.0);
-            gl_Position = view * pos4;
-
-            pos = pos4.xyz;
             vec4 normal4 = invTransModel * vec4(vertexNormal, 1.0);
+
+            gl_Position = view * pos4;
+            pos = pos4.xyz;
             normal = normalize(normal4.xyz);
+            textureCoord = vertexTextureCoord;
         }
     `;
 
@@ -586,8 +653,11 @@ function setupShaders() {
         uniform vec3 eye;
         uniform vec3 light;
 
+        uniform sampler2D textureSampler;
+
         varying vec3 pos;
         varying vec3 normal;
+        varying vec2 textureCoord;
 
         void main(void) {
             vec3 normal_n = normalize(normal);
@@ -595,10 +665,12 @@ function setupShaders() {
             vec3 L = normalize(light - pos);
             vec3 H = normalize(L + V);
 
-            gl_FragColor = vec4(ambient
+            vec4 lightingColor = vec4(ambient
                 + diffuse * max(dot(normal_n, L), 0.0)
                 + specular * pow(max(dot(H, normal_n), 0.0), n)
             , 1.0);
+            vec4 textureColor = texture2D(textureSampler, textureCoord);
+            gl_FragColor = textureColor;
         }
     `;
 
@@ -610,17 +682,20 @@ function setupShaders() {
 
         attribute vec3 vertexPosition;
         attribute vec3 vertexNormal;
+        attribute vec2 vertexTextureCoord;
 
         varying vec3 pos;
         varying vec3 normal;
+        varying vec2 textureCoord;
 
         void main(void) {
             vec4 pos4 = model * vec4(vertexPosition, 1.0);
-            gl_Position = view * pos4;
-
-            pos = pos4.xyz;
             vec4 normal4 = invTransModel * vec4(vertexNormal, 1.0);
+
+            gl_Position = view * pos4;
+            pos = pos4.xyz;
             normal = normalize(normal4.xyz);
+            textureCoord = vertexTextureCoord;
         }
     `;
 
