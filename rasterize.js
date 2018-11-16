@@ -133,7 +133,8 @@ class Camera {
 
 class Model {
     constructor(vertices, normals, uvs, indices, material) {
-        this.triBufferSize = 0;
+        this.triBufferSize = indices.length * 3;
+        this.triangles = indices;
         var center = vec3.create();
         var coordArray = [];
         var normalArray = normals.flat();
@@ -152,7 +153,6 @@ class Model {
             textureArray.push(uv[0]);
             textureArray.push(1-uv[1]);
         }
-        this.triBufferSize += indices.length * 3;
 
         this.material = {
             "ambient": vec3.fromValues(material.ambient[0], material.ambient[1], material.ambient[2]),
@@ -298,10 +298,10 @@ class Model {
     }
 
     /**
-     * Draw the model
-     * @param {bool} highlighted is this model highlighted
+     * Set the webgl attributes and uniforms for this model
+     * @param {bool} highlighted
      */
-    draw(highlighted) {
+    _setAttributesAndUniforms(highlighted) {
         var tempModelMatrix = mat4.create();
         mat4.multiply(tempModelMatrix, this.locationMatrix, tempModelMatrix);
         if(highlighted) {
@@ -345,8 +345,23 @@ class Model {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.material.texture);
         gl.uniform1i(samplerUniform, 0);
+    }
 
+    /**
+     * Draw the model
+     * @param {bool} highlighted is this model highlighted
+     */
+    draw(highlighted) {
+        this._setAttributesAndUniforms(highlighted);
         gl.drawElements(gl.TRIANGLES, this.triBufferSize, gl.UNSIGNED_SHORT, 0);
+    }
+
+    drawTriangle(highlighted, index) {
+        this._setAttributesAndUniforms(highlighted);
+        // offset = index * 2 * 3 = index*6
+        // 2 bytes per index
+        // 3 indices per triangle
+        gl.drawElements(gl.TRIANGLES, 3, gl.UNSIGNED_SHORT, index*6);
     }
 }//end Model class
 
@@ -725,7 +740,10 @@ function renderTriangles() {
     gl.uniform3fv(lightUniform, light);
 
     for(var i=0; i<objects.length; i++) {
-        objects[i].draw((i===highlightedModel));
+        var highlighted = (i===highlightedModel);
+        for(var j=0; j<objects[i].triangles.length; j++) {
+            objects[i].drawTriangle(highlighted, j);
+        }
     }
 } // end render triangles
 
