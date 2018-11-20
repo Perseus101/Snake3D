@@ -32,6 +32,7 @@ var ambientMaterialUniform; // where to put ambient material
 var diffuseMaterialUniform; // where to put diffuse material
 var specularMaterialUniform; // where to put specular material
 var specularNMaterialUniform; // where to put specular n material
+var alphaUniform; // where to put alpha
 var eyeUniform; // where to put eye position
 var lightUniform; // where to put light position
 var samplerUniform; // where to put texture sampler
@@ -130,6 +131,8 @@ class Camera {
         return eye;
     }
 }
+
+var camera = new Camera(Eye, Center, Up); // Camera instance
 
 class Model {
     constructor(vertices, normals, uvs, indices, material) {
@@ -298,6 +301,14 @@ class Model {
     }
 
     /**
+     * Is this model opaque?
+     *
+     * Test if the material alpha ~= 1.0
+     */
+    _isOpaque() {
+        return Math.abs(this.material.alpha - 1.0) < 0.001
+    }
+    /**
      * Set the webgl attributes and uniforms for this model
      * @param {bool} highlighted
      */
@@ -331,6 +342,7 @@ class Model {
         gl.uniform3fv(specularMaterialUniform, specular);
 
         gl.uniform1f(specularNMaterialUniform, this.material.n);
+        gl.uniform1f(alphaUniform, this.material.alpha);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer); // activate vertex buffer
         gl.vertexAttribPointer(vertexPositionAttrib, 3, gl.FLOAT, false, 0, 0); // feed
@@ -350,13 +362,22 @@ class Model {
     /**
      * Draw the model
      * @param {bool} highlighted is this model highlighted
+     * @param {bool} opaque is the draw phase opaque
      */
-    draw(highlighted) {
+    draw(highlighted, opaque) {
+        if (this._isOpaque() != opaque) { return; }
         this._setAttributesAndUniforms(highlighted);
         gl.drawElements(gl.TRIANGLES, this.triBufferSize, gl.UNSIGNED_SHORT, 0);
     }
 
-    drawTriangle(highlighted, index) {
+    /**
+     * Draw the triangle at index in the model
+     * @param {bool} highlighted is this model highlighted
+     * @param {int} index index of the triangle to draw
+     * @param {bool} opaque is the draw phase opaque
+     */
+    drawTriangle(highlighted, index, opaque) {
+        if (this._isOpaque() != opaque) { return; }
         this._setAttributesAndUniforms(highlighted);
         // offset = index * 2 * 3 = index*6
         // 2 bytes per index
@@ -418,6 +439,8 @@ class Shader {
             gl.getUniformLocation(this.shaderProgram, "specular");
         specularNMaterialUniform = // get pointer to specular material input
             gl.getUniformLocation(this.shaderProgram, "n");
+        alphaUniform = // get pointer to specular material input
+            gl.getUniformLocation(this.shaderProgram, "alpha");
 
         eyeUniform = // get pointer to eye location input
             gl.getUniformLocation(this.shaderProgram, "eye");
@@ -436,9 +459,6 @@ class Shader {
 
     }
 }
-
-var camera = new Camera(Eye, Center, Up);
-
 
 // ASSIGNMENT HELPER FUNCTIONS
 
@@ -538,6 +558,8 @@ function setupWebGL() {
             gl.clearColor(0.0, 0.0, 0.0, 0.0); // transparent when we clear the frame buffer
             gl.clearDepth(1.0); // use max when we clear the depth buffer
             gl.enable(gl.DEPTH_TEST); // use hidden surface removal (with zbuffering)
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         }
     } // end try
 
@@ -607,6 +629,7 @@ function setupShaders() {
         uniform vec3 diffuse;
         uniform vec3 specular;
         uniform float n;
+        uniform float alpha;
 
         uniform vec3 eye;
         uniform vec3 light;
@@ -626,7 +649,7 @@ function setupShaders() {
             vec4 lightingColor = vec4(ambient
                 + diffuse * max(dot(N, L), 0.0)
                 + specular * pow(max(dot(H, N), 0.0), n)
-            , 1.0);
+            , alpha);
             vec4 textureColor = texture2D(textureSampler, textureCoord);
             gl_FragColor = lightingColor * textureColor;
         }
@@ -669,6 +692,7 @@ function setupShaders() {
         uniform vec3 diffuse;
         uniform vec3 specular;
         uniform float n;
+        uniform float alpha;
 
         uniform vec3 eye;
         uniform vec3 light;
@@ -688,7 +712,7 @@ function setupShaders() {
             vec4 lightingColor = vec4(ambient
                 + diffuse * max(dot(N, L), 0.0)
                 + specular * pow(max(dot(H, N), 0.0), n)
-            , 1.0);
+            , alpha);
             vec4 textureColor = texture2D(textureSampler, textureCoord);
             gl_FragColor = textureColor;
         }
@@ -738,11 +762,18 @@ function renderTriangles() {
     gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
     gl.uniform3fv(eyeUniform, camera.getEye());
     gl.uniform3fv(lightUniform, light);
-
+    gl.depthMask(true);
     for(var i=0; i<objects.length; i++) {
         var highlighted = (i===highlightedModel);
         for(var j=0; j<objects[i].triangles.length; j++) {
-            objects[i].drawTriangle(highlighted, j);
+            objects[i].drawTriangle(highlighted, j, true);
+        }
+    }
+    gl.depthMask(false);
+    for(var i=0; i<objects.length; i++) {
+        var highlighted = (i===highlightedModel);
+        for(var j=0; j<objects[i].triangles.length; j++) {
+            objects[i].drawTriangle(highlighted, j, false);
         }
     }
 } // end render triangles
@@ -762,7 +793,7 @@ async function main() {
     while(true) {
         handleKeys();
         renderTriangles(); // draw the triangles using webGL
-        await sleep(10);
+        await sleep(30);
     }
 } // end main
 
