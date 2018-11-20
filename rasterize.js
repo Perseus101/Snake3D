@@ -301,6 +301,15 @@ class Model {
     }
 
     /**
+     * Return the center of the model
+     */
+    getCenter() {
+        var center = vec3.create();
+        mat4.getTranslation(center, this.modelMatrix);
+        return center;
+    }
+
+    /**
      * Is this model opaque?
      *
      * Test if the material alpha ~= 1.0
@@ -762,18 +771,26 @@ function renderTriangles() {
     gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
     gl.uniform3fv(eyeUniform, camera.getEye());
     gl.uniform3fv(lightUniform, light);
+
+    // Create a copy of the objects array and sort it into the correct render order
+    var sortedObjects = objects.slice(0);
+    sortedObjects.sort(function(a, b) {
+        var dist1 = vec3.distance(camera.getEye(), a.getCenter());
+        var dist2 = vec3.distance(camera.getEye(), b.getCenter());
+        return dist2 - dist1;
+    });
     gl.depthMask(true);
-    for(var i=0; i<objects.length; i++) {
-        var highlighted = (i===highlightedModel);
-        for(var j=0; j<objects[i].triangles.length; j++) {
-            objects[i].drawTriangle(highlighted, j, true);
+    for(var i=0; i<sortedObjects.length; i++) {
+        var highlighted = (sortedObjects[i]===objects[highlightedModel]);
+        for(var j=0; j<sortedObjects[i].triangles.length; j++) {
+            sortedObjects[i].drawTriangle(highlighted, j, true);
         }
     }
     gl.depthMask(false);
-    for(var i=0; i<objects.length; i++) {
-        var highlighted = (i===highlightedModel);
-        for(var j=0; j<objects[i].triangles.length; j++) {
-            objects[i].drawTriangle(highlighted, j, false);
+    for(var i=0; i<sortedObjects.length; i++) {
+        var highlighted = (sortedObjects[i]===objects[highlightedModel]);
+        for(var j=0; j<sortedObjects[i].triangles.length; j++) {
+            sortedObjects[i].drawTriangle(highlighted, j, false);
         }
     }
 } // end render triangles
