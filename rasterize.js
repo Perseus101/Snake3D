@@ -4,9 +4,7 @@
 const WIN_Z = 0;  // default graphics window z coord in world space
 const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in world space
 const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
-const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog4/triangles.json"; // triangles file loc
-const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog4/ellipsoids.json"; // spheres file loc
-const INPUT_TEXTURES_URL = "https://ncsucgclass.github.io/prog4/"; // spheres file loc
+const INPUT_TRIANGLES_URL = "triangles.json"; // triangles file loc
 
 var Eye = new vec3.fromValues(0.5, 0.5, -0.5); // default eye position in world space
 var Center = new vec3.fromValues((WIN_RIGHT-WIN_LEFT)/2, (WIN_TOP-WIN_BOTTOM)/2, WIN_Z); // default center position
@@ -535,7 +533,7 @@ function getTextureFile(url) {
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         }
     };
-    image.src = INPUT_TEXTURES_URL + url;
+    image.src = url;
 
     return texture;
 }
@@ -593,35 +591,6 @@ function loadTriangles() {
         } // end for each triangle set
     } // end if triangles found
 } // end load triangles
-
-// read ellipsoids in, load them into webgl buffers
-function loadEllipsoids() {
-    var inputSpheres = getJSONFile(INPUT_SPHERES_URL, "spheres");
-    var sphereModel = getJSONFile("sphere_model.json", "sphere_model")
-    if (inputSpheres != String.null) {
-        triBufferSize = 0;
-
-        for (var whichSet = 0; whichSet < inputSpheres.length; whichSet++) {
-            var model = new Model( sphereModel.vertices,
-                sphereModel.normals,
-                sphereModel.triangles,
-                inputSpheres[whichSet]
-                );
-            var translate = mat4.create();
-            mat4.fromTranslation(translate,[inputSpheres[whichSet].x,
-                                            inputSpheres[whichSet].y,
-                                            inputSpheres[whichSet].z]);
-            var scale = mat4.create();
-            mat4.fromScaling(scale,[inputSpheres[whichSet].a,
-                                    inputSpheres[whichSet].b,
-                                    inputSpheres[whichSet].c]);
-            mat4.multiply(model.modelScaleMatrix, scale, model.modelScaleMatrix);
-            mat4.multiply(model.modelMatrix, translate, model.modelMatrix);
-
-            objects.push(model);
-        } // end for each triangle set
-    } // end if triangles found
-} // end load sphere model
 
 // setup the webGL shaders
 function setupShaders() {

@@ -1,2 +1,3 @@
-# prog2
-helper files for the intro cg class's second programming assignment
+# Snake!
+
+Open index.html in a modern browser to play snake!
