@@ -62,7 +62,7 @@ class GameState {
 
     /** Returns an initial camera. Uses `this.snakePieces` to determine where the initial camera should be */
     createInitialCamera() {
-        return new Camera(vec3.fromValues(0, 0, 0), this.snakeDirection, this.snakeUp);
+        return new Camera(vec3.fromValues(0, 0, 0), vec3.clone(this.snakeDirection), vec3.clone(this.snakeUp));
     }
 
     /** Main call point for updating the GameState. This function then determines which sub-updates to call for the GameState. */
