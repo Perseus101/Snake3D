@@ -6,10 +6,6 @@ const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in 
 const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
 const INPUT_TRIANGLES_URL = "triangles.json"; // triangles file loc
 
-var Eye = new vec3.fromValues(0.5, 0.5, -0.5); // default eye position in world space
-var Center = new vec3.fromValues((WIN_RIGHT-WIN_LEFT)/2, (WIN_TOP-WIN_BOTTOM)/2, WIN_Z); // default center position
-var Up = new vec3.fromValues(0, 1, 0);
-
 var light = new vec3.fromValues(-3.0, 1.0, -0.5); // default light position in world space
 
 var modulateShader = null;
