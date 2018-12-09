@@ -38,6 +38,60 @@ var viewMatrixUniform; // where to put position transform matrix
 var modelMatrixUniform; // where to put model transform matrix
 var modelInvTransMatrixUniform; // where to put the inverse transpose of the model transform matrix
 
+/** GameState class */
+class GameState {
+    constructor() {
+        this.snakeTime = 0; //increments each time the snake moves forward
+        this.snakeSpeed = 1.5; // Snake tick frequency: number of times the snake moves forward per second.
+        this.currentDirection = undefined;
+        this.snakePieces = GameState.createInitialSnake(10);
+        this.camera = this.createInitialCamera();
+    }
+
+    /** Returns a set of coordinates that act as the initial snake at the start of the game */
+    static createInitialSnake(length) {
+        let snake = [];
+        for (let i = 0; i < length; i++) {
+            snake.push(vec3.fromValues(0, 0, -i));
+        }
+        return snake;
+    }
+
+    /** Returns an initial camera. Uses `this.snakePieces` to determine where the initial camera should be */
+    createInitialCamera() {
+        // return new Camera(undefined, undefined, undefined);
+    }
+
+    /** Updates time one tick forward, progressing the snake along the `currentDirection` and updating the `snakePieces` list */
+    moveForward() {
+        this.snakeTime++;
+    }
+
+    /** Updates the current camera positioning and rotation so that it is animated nicely */
+    updateCamera() {
+
+    }
+
+    /**
+     * Gets the orientation for a snake piece at coordinate `b`.
+     * The snake pieces before and after it exist at coordinates `a` and `c` respectively.
+     * Should return an identifier for the model that should be used to draw the snake at `b`,
+     * and an appropriate rotationMatrix to orient it correctly.
+     * `a` and `c` may be undefined, which denotes that this is a cap piece.
+     */
+    getPieceAndOrientation(a, b, c) {
+
+    }
+
+    /** Draws the current game state */
+    render() {
+        for (let i = 0; i < this.snakePieces.length; i++) {
+            // The lack of bounds checking here and the potential for getting `undefined`s is intentional. `getPieceAndOrientation` should handle `undefined`s.
+            let pieceAndOrientation = this.getPieceAndOrientation(this.snakePieces[i - 1], this.snakePieces[i], this.snakePieces[i + 1]);
+        }
+    }
+}
+
 /** Camera class */
 class Camera {
     constructor(eye, center, up) {
