@@ -5,6 +5,7 @@ const WIN_Z = 0;  // default graphics window z coord in world space
 const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in world space
 const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
 const INPUT_TRIANGLES_URL = "triangles.json"; // triangles file loc
+const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 
 var Eye = new vec3.fromValues(0.5, 0.5, -0.5); // default eye position in world space
 var Center = new vec3.fromValues((WIN_RIGHT-WIN_LEFT)/2, (WIN_TOP-WIN_BOTTOM)/2, WIN_Z); // default center position
@@ -630,21 +631,32 @@ function setupWebGL() {
 
 } // end setupWebGL
 
-// read triangles in, load them into webgl buffers
-function loadTriangles() {
-    var inputTriangles = getJSONFile(INPUT_TRIANGLES_URL, "triangles");
-    if (inputTriangles != String.null) {
-        triBufferSize = 0;
+/**
+ * Load models
+ */
+function loadModels() {
+    fetch(INPUT_TRIANGLES_URL)
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(inputTriangles) {
+            for (var whichSet = 0; whichSet < inputTriangles.length; whichSet++) {
+                objects.push(new Model( inputTriangles[whichSet].vertices,
+                                        inputTriangles[whichSet].normals,
+                                        inputTriangles[whichSet].uvs,
+                                        inputTriangles[whichSet].triangles,
+                                        inputTriangles[whichSet].material))
+            }
+        });
+    fetch(SNAKE_BODY_URL)
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(model) {
+            new Model(model.vertices, model.normals, model.uvs, model.triangles, model.material);
+        });
 
-        for (var whichSet = 0; whichSet < inputTriangles.length; whichSet++) {
-            objects.push(new Model( inputTriangles[whichSet].vertices,
-                                    inputTriangles[whichSet].normals,
-                                    inputTriangles[whichSet].uvs,
-                                    inputTriangles[whichSet].triangles,
-                                    inputTriangles[whichSet].material))
-        } // end for each triangle set
-    } // end if triangles found
-} // end load triangles
+} // end load models
 
 // setup the webGL shaders
 function setupShaders() {
@@ -825,7 +837,7 @@ function sleep(ms) {
 
 async function main() {
     setupWebGL(); // set up the webGL environment
-    loadTriangles(); // load in the triangles from tri file
+    loadModels(); // load in the triangles from tri file
     //loadEllipsoids(); // load in the ellipsoids from  file
 
     setupShaders(); // setup the webGL shaders
