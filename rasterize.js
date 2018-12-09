@@ -38,12 +38,16 @@ var viewMatrixUniform; // where to put position transform matrix
 var modelMatrixUniform; // where to put model transform matrix
 var modelInvTransMatrixUniform; // where to put the inverse transpose of the model transform matrix
 
+var gameState = undefined;
+var ControlsEnum = Object.freeze({ "up": 1, "down": 2, "left": 3, "right": 4, "none": 5});
+
 /** GameState class */
 class GameState {
     constructor() {
         this.snakeTime = 0; //increments each time the snake moves forward
         this.snakeSpeed = 1.5; // Snake tick frequency: number of times the snake moves forward per second.
-        this.currentDirection = undefined;
+        this.currentDirection = vec3.fromValues(0, 0, 1); //into the screen
+        this.lastControlInput = ControlsEnum.none;
         this.snakePieces = GameState.createInitialSnake(10);
         this.camera = this.createInitialCamera();
     }
@@ -64,6 +68,11 @@ class GameState {
 
     /** Updates time one tick forward, progressing the snake along the `currentDirection` and updating the `snakePieces` list */
     moveForward() {
+
+
+
+        // At End
+        this.lastControlInput = ControlsEnum.none; //input has been processed, clear it
         this.snakeTime++;
     }
 
@@ -89,6 +98,24 @@ class GameState {
             // The lack of bounds checking here and the potential for getting `undefined`s is intentional. `getPieceAndOrientation` should handle `undefined`s.
             let pieceAndOrientation = this.getPieceAndOrientation(this.snakePieces[i - 1], this.snakePieces[i], this.snakePieces[i + 1]);
         }
+    }
+
+
+    // CONTROLS
+    turnLeft() {
+        this.lastControlInput = ControlsEnum.left;
+    }
+
+    turnRight() {
+        this.lastControlInput = ControlsEnum.right;
+    }
+
+    turnUp() {
+        this.lastControlInput = ControlsEnum.up;
+    }
+
+    turnDown() {
+        this.lastControlInput = ControlsEnum.down;
     }
 }
 
@@ -830,167 +857,56 @@ async function main() {
 
     setupShaders(); // setup the webGL shaders
     shader.activate();
+
+    gameState = new GameState();
+
     while(true) {
-        handleKeys();
         renderTriangles(); // draw the triangles using webGL
         await sleep(30);
     }
 } // end main
 
-var keys = { 16: false };
 function keydown(event) {
-    keys[event.keyCode] = true;
-}
-function keyup(event) {
-    keys[event.keyCode] = false;
-}
+    if (gameState == undefined) {
+        return;
+    }
 
-const DELTA = 0.01;
-const ROT_DELTA = 0.02;
+    let code = event.keyCode;
 
-function handleKeys() {
-    var shift = keys[16];
-    Object.keys(keys).forEach(function(code) {
-        if( keys[code] ) {
-            var char = String.fromCharCode(code);
-            if(!shift) { char = char.toLowerCase(); }
-            if(shift && char === ';') { char = ':'; }
-            switch(char) {
-                // Translation
-                case 'a':
-                    camera.translate(vec3.fromValues(DELTA, 0, 0));
-                    break;
-                case 'd':
-                    camera.translate(vec3.fromValues(-DELTA, 0, 0));
-                    break;
-                case 's':
-                    camera.translate(vec3.fromValues(0, 0, -DELTA));
-                    break;
-                case 'w':
-                    camera.translate(vec3.fromValues(0, 0, DELTA));
-                    break;
-        
-                case 'q':
-                    camera.translate(vec3.fromValues(0, -DELTA, 0));
-                    break;
-                case 'e':
-                    camera.translate(vec3.fromValues(0, DELTA, 0));
-                    break;
-        
-                // Rotate
-                case 'A':
-                    camera.rotateY(-ROT_DELTA);
-                    break;
-                case 'D':
-                    camera.rotateY(ROT_DELTA);
-                    break;
+    var char = String.fromCharCode(code);
+    switch (char) {
+        // Translation
+        case 'A':
+            gameState.turnLeft();
+            break;
+        case 'D':
+            gameState.turnRight();
+            break;
+        case 'S':
+            gameState.turnDown();
+            break;
+        case 'W':
+            gameState.turnUp();
+            break;
 
-                case 'W':
-                    camera.rotateX(-ROT_DELTA);
-                    break;
-                case 'S':
-                    camera.rotateX(ROT_DELTA);
-                    break;
-
-
-                case 'b':
-                    keys[code] = false;
-                    if(shader === modulateShader) {
-                        shader = replaceShader;
-                    }
-                    else {
-                        shader = modulateShader;
-                    }
-                    shader.activate();
-                    break;
-
-                case ' ':
-                    keys[code] = false;
-                    highlightedModel = -1;
-                    break;
-                default:
-                    break;
-            }
-            // check arrow key codes
-            if(code == 37) {
-                //Left arrow
-                keys[code] = false;
-                highlightedModel--;
-            }
-            else if(code == 39) {
-                //Right arrow
-                keys[code] = false;
-                highlightedModel++;
-            }
-            if(highlightedModel < -1) {
-                highlightedModel = -1;
-            }
-            if(highlightedModel >= objects.length) {
-                highlightedModel = 0;
-            }
-            if(highlightedModel == -1) {
-                return;
-            }
-
-            //If there is a model highlighted
-            switch(char) {
-            case 'n':
-                keys[code] = false;
-                objects[highlightedModel].incrementSpecularN()
-                break;
-            case '1':
-                keys[code] = false;
-                objects[highlightedModel].incrementAmbient()
-                break;
-            case '2':
-                keys[code] = false;
-                objects[highlightedModel].incrementDiffuse()
-                break;
-            case '3':
-                keys[code] = false;
-                objects[highlightedModel].incrementSpecular()
-                break;
-
-            // Translations
-            case 'k':
-                objects[highlightedModel].translate(vec3.fromValues(-DELTA, 0, 0));
-                break;
-            case ';':
-                objects[highlightedModel].translate(vec3.fromValues(DELTA, 0, 0));
-                break;
-            case 'o':
-                objects[highlightedModel].translate(vec3.fromValues(0, 0, -DELTA));
-                break;
-            case 'l':
-                objects[highlightedModel].translate(vec3.fromValues(0, 0, DELTA));
-                break;
-            case 'i':
-                objects[highlightedModel].translate(vec3.fromValues(0, -DELTA, 0));
-                break;
-            case 'p':
-                objects[highlightedModel].translate(vec3.fromValues(0, DELTA, 0));
-                break;
-
-            // Rotations
-            case 'K':
-                objects[highlightedModel].rotateY(ROT_DELTA);
-                break;
-            case ':':
-                objects[highlightedModel].rotateY(-ROT_DELTA);
-                break;
-            case 'O':
-                objects[highlightedModel].rotateX(ROT_DELTA);
-                break;
-            case 'L':
-                objects[highlightedModel].rotateX(-ROT_DELTA);
-                break;
-            case 'I':
-                objects[highlightedModel].rotateZ(ROT_DELTA);
-                break;
-            case 'P':
-                objects[highlightedModel].rotateZ(-ROT_DELTA);
-                break;
-            }
-        }
-    });
+        default:
+            break;
+    }
+    // check arrow key codes
+    if (code == 37) {
+        //Left arrow
+        gameState.turnLeft();
+    }
+    else if (code == 39) {
+        //Right arrow
+        gameState.turnRight();
+    }
+    else if (code == 38) {
+        //Up arrow
+        gameState.turnUp();
+    }
+    else if (code == 40) {
+        //Down arrow
+        gameState.turnDown();
+    }
 }
