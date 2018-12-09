@@ -7,10 +7,6 @@ const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in 
 const INPUT_TRIANGLES_URL = "triangles.json"; // triangles file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 
-var Eye = new vec3.fromValues(0.5, 0.5, -0.5); // default eye position in world space
-var Center = new vec3.fromValues((WIN_RIGHT-WIN_LEFT)/2, (WIN_TOP-WIN_BOTTOM)/2, WIN_Z); // default center position
-var Up = new vec3.fromValues(0, 1, 0);
-
 var light = new vec3.fromValues(-3.0, 1.0, -0.5); // default light position in world space
 
 var modulateShader = null;
@@ -40,14 +36,16 @@ var modelMatrixUniform; // where to put model transform matrix
 var modelInvTransMatrixUniform; // where to put the inverse transpose of the model transform matrix
 
 var gameState = undefined;
-var ControlsEnum = Object.freeze({ "up": 1, "down": 2, "left": 3, "right": 4, "none": 5});
+var ControlsEnum = Object.freeze({ "up": 1, "down": 2, "left": 3, "right": 4, "rotateLeft": 5, "rotateRight": 6, "none": 7});
 
 /** GameState class */
 class GameState {
     constructor() {
+        this.lastSnakeTick = Date.now();
         this.snakeTime = 0; //increments each time the snake moves forward
-        this.snakeSpeed = 1.5; // Snake tick frequency: number of times the snake moves forward per second.
-        this.currentDirection = vec3.fromValues(0, 0, 1); //into the screen
+        this.snakeSpeed = 4.5; // Snake tick frequency: number of times the snake moves forward per second.
+        this.snakeDirection = vec3.fromValues(0, 0, 1); //into the screen
+        this.snakeUp = vec3.fromValues(0, 1, 0); //straight up
         this.lastControlInput = ControlsEnum.none;
         this.snakePieces = GameState.createInitialSnake(10);
         this.camera = this.createInitialCamera();
@@ -64,13 +62,64 @@ class GameState {
 
     /** Returns an initial camera. Uses `this.snakePieces` to determine where the initial camera should be */
     createInitialCamera() {
-        // return new Camera(undefined, undefined, undefined);
+        return new Camera(vec3.fromValues(0, 0, 0), this.snakeDirection, this.snakeUp);
     }
 
-    /** Updates time one tick forward, progressing the snake along the `currentDirection` and updating the `snakePieces` list */
+    /** Main call point for updating the GameState. This function then determines which sub-updates to call for the GameState. */
+    update() {
+        let curTime = Date.now();
+        if (curTime - this.lastSnakeTick >= 1000/this.snakeSpeed) {
+            this.lastSnakeTick = curTime;
+            this.moveForward();
+        }
+    }
+
+    /** Updates time one tick forward, processing the user input,
+     * and progressing the snake along the `snakeDirection` and updating the `snakePieces` list. */
     moveForward() {
+        let snakeLeft = vec3.create(); vec3.cross(snakeLeft, this.snakeUp, this.snakeDirection); // we are in a weird left handed coordinate system
 
+        switch (this.lastControlInput) {
+            case ControlsEnum.left:
+                this.snakeDirection = snakeLeft;
+                break;
 
+            case ControlsEnum.right:
+                vec3.negate(this.snakeDirection, snakeLeft);
+                break;
+
+            case ControlsEnum.down:
+                let oldUp = vec3.clone(this.snakeUp);
+                vec3.copy(this.snakeUp, this.snakeDirection);
+                vec3.negate(this.snakeDirection, oldUp);
+                break;
+
+            case ControlsEnum.up:
+                let oldDirection = vec3.clone(this.snakeDirection);
+                vec3.copy(this.snakeDirection, this.snakeUp);
+                vec3.negate(this.snakeUp, oldDirection);
+                break;
+
+            case ControlsEnum.rotateLeft:
+                vec3.copy(this.snakeUp, snakeLeft);
+                break;
+
+            case ControlsEnum.rotateRight:
+                vec3.negate(this.snakeUp, snakeLeft);
+                break;
+
+            case ControlsEnum.none:
+                break;
+        }
+
+        // For temporary debugging
+        let moveAmt = vec3.create();
+        vec3.scale(moveAmt, this.snakeDirection, 0.01);
+        vec3.add(this.camera.eye, this.camera.eye, moveAmt);
+        vec3.add(this.camera.center, this.camera.eye, this.snakeDirection);
+        vec3.copy(this.camera.up, this.snakeUp);
+        mat4.lookAt(this.camera.transform, this.camera.eye, this.camera.center, this.camera.up);
+        // end temporary
 
         // At End
         this.lastControlInput = ControlsEnum.none; //input has been processed, clear it
@@ -117,6 +166,14 @@ class GameState {
 
     turnDown() {
         this.lastControlInput = ControlsEnum.down;
+    }
+
+    rotateLeft() {
+        this.lastControlInput = ControlsEnum.rotateLeft
+    }
+
+    rotateRight() {
+        this.lastControlInput = ControlsEnum.rotateRight;
     }
 }
 
@@ -211,8 +268,6 @@ class Camera {
         return eye;
     }
 }
-
-var camera = new Camera(Eye, Center, Up); // Camera instance
 
 class Model {
     constructor(vertices, normals, uvs, indices, material) {
@@ -318,9 +373,9 @@ class Model {
 
         // Transform the translation into the current view
         var op = mat4.create();
-        mat4.multiply(op, camera.getTransform(), op);
+        mat4.multiply(op, gameState.camera.getTransform(), op);
         mat4.multiply(op, translate, op);
-        mat4.multiply(op, camera.getTransformInv(), op);
+        mat4.multiply(op, gameState.camera.getTransformInv(), op);
 
         // Add the new translation
         mat4.multiply(this.modelMatrix, op, this.modelMatrix);
@@ -336,9 +391,9 @@ class Model {
 
         // Transform the rotation into the current view
         var op = mat4.create();
-        mat4.multiply(op, camera.getTransformNT(), op);
+        mat4.multiply(op, gameState.camera.getTransformNT(), op);
         mat4.multiply(op, rotate, op);
-        mat4.multiply(op, camera.getTransformInvNT(), op);
+        mat4.multiply(op, gameState.camera.getTransformInvNT(), op);
 
         // Add the new rotation
         mat4.multiply(this.modelRotationMatrix, op, this.modelRotationMatrix);
@@ -354,9 +409,9 @@ class Model {
 
         // Transform the rotation into the current view
         var op = mat4.create();
-        mat4.multiply(op, camera.getTransformNT(), op);
+        mat4.multiply(op, gameState.camera.getTransformNT(), op);
         mat4.multiply(op, rotate, op);
-        mat4.multiply(op, camera.getTransformInvNT(), op);
+        mat4.multiply(op, gameState.camera.getTransformInvNT(), op);
 
         // Add the new rotation
         mat4.multiply(this.modelRotationMatrix, op, this.modelRotationMatrix);
@@ -372,9 +427,9 @@ class Model {
 
         // Transform the rotation into the current view
         var op = mat4.create();
-        mat4.multiply(op, camera.getTransformNT(), op);
+        mat4.multiply(op, gameState.camera.getTransformNT(), op);
         mat4.multiply(op, rotate, op);
-        mat4.multiply(op, camera.getTransformInvNT(), op);
+        mat4.multiply(op, gameState.camera.getTransformInvNT(), op);
 
         // Add the new rotation
         mat4.multiply(this.modelRotationMatrix, op, this.modelRotationMatrix);
@@ -828,17 +883,17 @@ function renderTriangles() {
     var transform = mat4.create();
     mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.01, 100);
 
-    mat4.multiply(transform, transform, camera.getTransform());
+    mat4.multiply(transform, transform, gameState.camera.getTransform());
 
     gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
-    gl.uniform3fv(eyeUniform, camera.getEye());
+    gl.uniform3fv(eyeUniform, gameState.camera.getEye());
     gl.uniform3fv(lightUniform, light);
 
     // Create a copy of the objects array and sort it into the correct render order
     var sortedObjects = objects.slice(0);
     sortedObjects.sort(function(a, b) {
-        var dist1 = vec3.distance(camera.getEye(), a.getCenter());
-        var dist2 = vec3.distance(camera.getEye(), b.getCenter());
+        var dist1 = vec3.distance(gameState.camera.getEye(), a.getCenter());
+        var dist2 = vec3.distance(gameState.camera.getEye(), b.getCenter());
         return dist2 - dist1;
     });
     gl.depthMask(true);
@@ -873,6 +928,7 @@ async function main() {
     gameState = new GameState();
 
     while(true) {
+        gameState.update();
         renderTriangles(); // draw the triangles using webGL
         await sleep(30);
     }
@@ -887,7 +943,6 @@ function keydown(event) {
 
     var char = String.fromCharCode(code);
     switch (char) {
-        // Translation
         case 'A':
             gameState.turnLeft();
             break;
@@ -899,6 +954,12 @@ function keydown(event) {
             break;
         case 'W':
             gameState.turnUp();
+            break;
+        case 'Q':
+            gameState.rotateLeft();
+            break;
+        case 'E':
+            gameState.rotateRight();
             break;
 
         default:
