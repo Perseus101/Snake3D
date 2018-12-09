@@ -46,7 +46,8 @@ class GameState {
     constructor() {
         this.snakeTime = 0; //increments each time the snake moves forward
         this.snakeSpeed = 1.5; // Snake tick frequency: number of times the snake moves forward per second.
-        this.currentDirection = vec3.fromValues(0, 0, 1); //into the screen
+        this.snakeDirection = vec3.fromValues(0, 0, 1); //into the screen
+        this.snakeUp = vec3.fromValues(0, 1, 0); //straight up
         this.lastControlInput = ControlsEnum.none;
         this.snakePieces = GameState.createInitialSnake(10);
         this.camera = this.createInitialCamera();
@@ -66,10 +67,35 @@ class GameState {
         // return new Camera(undefined, undefined, undefined);
     }
 
-    /** Updates time one tick forward, progressing the snake along the `currentDirection` and updating the `snakePieces` list */
+    /** Updates time one tick forward, processing the user input,
+     * and progressing the snake along the `snakeDirection` and updating the `snakePieces` list. */
     moveForward() {
+        let snakeLeft = vec3.create(); vec3.cross(snakeLeft, this.snakeDirection, this.snakeUp); // we are in a weird left handed coordinate system
 
+        switch (this.lastControlInput) {
+            case ControlsEnum.left:
+                this.snakeDirection = snakeLeft;
+                break;
 
+            case ControlsEnum.right:
+                vec3.negate(this.snakeDirection, snakeLeft);
+                break;
+
+            case ControlsEnum.down:
+                let oldUp = vec3.clone(this.snakeUp);
+                vec3.copy(this.snakeUp, this.snakeDirection);
+                vec3.negate(this.snakeDirection, oldUp);
+                break;
+
+            case ControlsEnum.up:
+                let oldDirection = vec3.clone(this.snakeDirection);
+                vec3.copy(this.snakeDirection, this.snakeUp);
+                vec3.negate(this.snakeUp, oldDirection);
+                break;
+
+            case ControlsEnum.none:
+                break;
+        }
 
         // At End
         this.lastControlInput = ControlsEnum.none; //input has been processed, clear it
@@ -861,6 +887,7 @@ async function main() {
     gameState = new GameState();
 
     while(true) {
+        gameState.moveForward();
         renderTriangles(); // draw the triangles using webGL
         await sleep(30);
     }
@@ -875,7 +902,6 @@ function keydown(event) {
 
     var char = String.fromCharCode(code);
     switch (char) {
-        // Translation
         case 'A':
             gameState.turnLeft();
             break;
