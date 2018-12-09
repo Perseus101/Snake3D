@@ -39,7 +39,7 @@ var modelMatrixUniform; // where to put model transform matrix
 var modelInvTransMatrixUniform; // where to put the inverse transpose of the model transform matrix
 
 var gameState = undefined;
-var ControlsEnum = Object.freeze({ "up": 1, "down": 2, "left": 3, "right": 4, "none": 5});
+var ControlsEnum = Object.freeze({ "up": 1, "down": 2, "left": 3, "right": 4, "rotateLeft": 5, "rotateRight": 6, "none": 7});
 
 /** GameState class */
 class GameState {
@@ -93,6 +93,14 @@ class GameState {
                 vec3.negate(this.snakeUp, oldDirection);
                 break;
 
+            case ControlsEnum.rotateLeft:
+                vec3.copy(this.snakeUp, snakeLeft);
+                break;
+
+            case ControlsEnum.rotateRight:
+                vec3.negate(this.snakeUp, snakeLeft);
+                break;
+
             case ControlsEnum.none:
                 break;
         }
@@ -142,6 +150,14 @@ class GameState {
 
     turnDown() {
         this.lastControlInput = ControlsEnum.down;
+    }
+
+    rotateLeft() {
+        this.lastControlInput = ControlsEnum.rotateLeft
+    }
+
+    rotateRight() {
+        this.lastControlInput = ControlsEnum.rotateRight;
     }
 }
 
@@ -913,6 +929,12 @@ function keydown(event) {
             break;
         case 'W':
             gameState.turnUp();
+            break;
+        case 'Q':
+            gameState.rotateLeft();
+            break;
+        case 'E':
+            gameState.rotateRight();
             break;
 
         default:
