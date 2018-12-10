@@ -1,7 +1,7 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
 const INPUT_TRIANGLES_URL = "triangles.json"; // triangles file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
-
+const MENUS = ["mainMenu", "optionsMenu", "deathScreen"];
 var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
 var shader = null;
 
@@ -32,6 +32,19 @@ var ControlsEnum = Object.freeze({ "up": 1, "down": 2, "left": 3, "right": 4, "r
 /** GameState class */
 class GameState {
     constructor() {
+        this.reset();
+    }
+
+    /** Returns a set of coordinates that act as the initial snake at the start of the game */
+    static createInitialSnake(length) {
+        let snake = [];
+        for (let i = 0; i < length; i++) {
+            snake.push(vec3.fromValues(0, 0, -1));
+        }
+        return snake;
+    }
+
+    reset() {
         this.dead = false;
 
         this.lastSnakeTick = Date.now();
@@ -55,24 +68,6 @@ class GameState {
             snakeUp: vec3.create(),
             position: vec3.create()
         }
-    }
-
-    /**
-     * Show the menu with the given id
-     * @param {String} id the id of the menu to show
-     */
-    static showMenu(id) {
-        let menu = document.getElementById(id);
-        menu.classList.remove("hidden");
-    }
-
-    /** Returns a set of coordinates that act as the initial snake at the start of the game */
-    static createInitialSnake(length) {
-        let snake = [];
-        for (let i = 0; i < length; i++) {
-            snake.push(vec3.fromValues(0, 0, -1));
-        }
-        return snake;
     }
 
     /** Returns an initial camera. Uses `this.snakePieces` to determine where the initial camera should be */
@@ -148,7 +143,7 @@ class GameState {
         for (let i = 0; i < this.snakePieces.length; i++) {
             vec3.add(sum, this.snakePieces[i], sum);
             if(vec3.length(sum) < 0.1) {
-                GameState.showMenu("deathScreen");
+                showMenu("deathScreen");
                 this.dead = true;
             }
         }
@@ -838,6 +833,42 @@ function setupShaders() {
     shader = new Shader(fModulateShaderCode, vModulateShaderCode);
 } // end setup shaders
 
+/**
+ * Show the menu with the given id
+ * @param {String} id the id of the menu to show
+ */
+function showMenu(id) {
+    for(var menuIdx in MENUS) {
+        let menuElement = document.getElementById(MENUS[menuIdx]);
+        menuElement.classList.add("hidden");
+    }
+    let menu = document.getElementById(id);
+    menu.classList.remove("hidden");
+}
+
+function reset() {
+    for(var menuIdx in MENUS) {
+        let menuElement = document.getElementById(MENUS[menuIdx]);
+        menuElement.classList.add("hidden");
+    }
+    gameState.reset();
+}
+
+/**
+ * Setup variables and data on startup
+ */
+async function setup() {
+    let modelLoadPromise = loadModels(); // Start loading models
+    setupWebGL(); // set up the webGL environment
+
+    setupShaders(); // setup the webGL shaders
+    shader.activate();
+
+    gameState = new GameState();
+
+    await modelLoadPromise; // Wait for models to finish loading
+}
+
 // render the loaded model
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
@@ -861,14 +892,10 @@ function sleep(ms) {
 }
 
 async function main() {
-    setupWebGL(); // set up the webGL environment
-    await loadModels(); // load in the triangles from tri file
-    //loadEllipsoids(); // load in the ellipsoids from  file
+    var mainMenu = document.getElementById("mainMenu");
+    mainMenu.classList.add("hidden");
 
-    setupShaders(); // setup the webGL shaders
-    shader.activate();
-
-    gameState = new GameState();
+    gameState.reset();
 
     while(true) {
         gameState.update();
