@@ -695,6 +695,18 @@ function setupWebGL() {
  * Load models
  */
 async function loadModels() {
+    fetch(INPUT_TRIANGLES_URL)
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(rawModels) {
+            for(var i in rawModels) {
+                let model = rawModels[i];
+                objects.push(new Model(model.vertices, model.normals,
+                        model.uvs, model.triangles, model.material));
+            }
+        });
+
     let snakeBodyPromise = fetch(SNAKE_BODY_URL)
         .then(function(response) {
             return response.json();
@@ -784,9 +796,7 @@ function renderTriangles() {
     gl.uniform3fv(lightUniform, light);
 
     for(var i=0; i<objects.length; i++) {
-        for(var j=0; j<objects[i].triangles.length; j++) {
-            objects[i].draw();
-        }
+        objects[i].draw();
     }
 } // end render triangles
 
