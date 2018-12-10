@@ -6,7 +6,7 @@ var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in
 var shader = null;
 
 /* webgl globals */
-var canvas;
+var canvas = undefined;
 var gl = null; // the all powerful gl object. It's all here folks!
 var objects = [];
 var models = {};
@@ -793,14 +793,34 @@ function getTextureFile(url) {
     return texture;
 }
 
+function onResize() {
+    var realToCSSPixels = window.devicePixelRatio;
+
+    // Lookup the size the browser is displaying the canvas in CSS pixels
+    // and compute a size needed to make our drawingbuffer match it in
+    // device pixels.
+    var displayWidth = Math.floor(gl.canvas.clientWidth * realToCSSPixels);
+    var displayHeight = Math.floor(gl.canvas.clientHeight * realToCSSPixels);
+
+    // Check if the canvas is not the same size.
+    if (gl.canvas.width !== displayWidth ||
+        gl.canvas.height !== displayHeight) {
+
+        // Make the canvas the same size
+        gl.canvas.width = displayWidth;
+        gl.canvas.height = displayHeight;
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    }
+}
+
 // set up the webGL environment
 function setupWebGL() {
 
     // Get the canvas and context
     canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
     gl = canvas.getContext("webgl"); // get a webgl object from it
+
+    onResize();
 
     try {
         if (gl == null) {
