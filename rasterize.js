@@ -1,5 +1,6 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
-const INPUT_TRIANGLES_URL = "space.json"; // triangles file loc
+const SKYBOX_URL = "space.json"; // skybox file loc
+const APPLE_URL = "gameApple.json"; // apple file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 const MENUS = ["mainMenu", "optionsMenu", "deathScreen"];
 var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
@@ -58,6 +59,7 @@ class GameState {
         this.lastControlInput = ControlsEnum.none;
         this.position = vec3.fromValues(0, 0, 0);
         this.snakePieces = this.createInitialSnake(100);
+        this.apples = [];
 
         this.camera = this.createInitialCamera();
         this.minimapCamera = this.createInitialCamera();
@@ -71,6 +73,8 @@ class GameState {
             snakeUp: vec3.create(),
             position: vec3.create()
         }
+
+        this.growApple();
     }
 
     /** Returns an initial camera. Uses `this.snakePieces` to determine where the initial camera should be */
@@ -141,6 +145,7 @@ class GameState {
         // Pop the old tail
         let popped = this.snakePieces.pop();
 
+        // Detect collision with itself
         let sum = vec3.create();
         for (let i = 0; i < this.snakePieces.length; i++) {
             vec3.add(sum, this.snakePieces[i], sum);
@@ -153,9 +158,39 @@ class GameState {
                 break;
             }
         }
+
+        // Detect collisions with apples
+        for (let i = 0; i < this.apples.length; i++) {
+            let difference = vec3.create();
+            vec3.subtract(difference, this.position, this.apples[i]);
+            if(vec3.length(difference) < 0.1) {
+                // this.snakeSize += 5;
+                console.log("Apple eaten!");
+                this.apples.splice(i, 1);
+                this.growApple();
+            }
+        }
+
         // At End
         this.lastControlInput = ControlsEnum.none; //input has been processed, clear it
         this.snakeTime++;
+    }
+
+    /** Grows a new apple somewhere on the play field that doesn't collide with the snake */
+    growApple() {
+        this.apples.push(this.getRandomPosition());
+        // TODO: check to see if this location is within the snake already
+    }
+    
+    /** Returns a random valid position within the playing field */
+    getRandomPosition() {
+        let max = 10;
+        let position = [];
+        for (let i = 0; i < 3; i++) {
+            position.push(Math.floor((Math.random() * max * 2) + 1) - max);
+        }
+        console.log("New apple in position: " + position);
+        return position;
     }
 
     /** Updates the current camera positioning and rotation so that it is animated nicely */
@@ -214,8 +249,10 @@ class GameState {
     render(miniMapMode) {
         if (miniMapMode) {
             models["snake_body"].material.alpha = 0.3;
+            models["apple"].material.ambient[0] = 1.0;
         } else {
             models["snake_body"].material.alpha = 1;
+            models["apple"].material.ambient[0] = 0.3;
         }
 
         let camera = this.camera;
@@ -230,19 +267,32 @@ class GameState {
 
         let translationMatrix = mat4.create();
         mat4.fromTranslation(translationMatrix, this.position);
+
+        // Render snake pieces
         for (let i = 0; i < this.snakePieces.length; i++) {
-            // Translate the segment
             let segmentTranslationMatrix = mat4.create();
             mat4.fromTranslation(segmentTranslationMatrix, this.snakePieces[i]);
             mat4.multiply(translationMatrix, segmentTranslationMatrix, translationMatrix);
 
-            let [model, rotationMatrix] = this.getPieceAndOrientation(this.snakePieces[i - 1], this.snakePieces[i], this.snakePieces[i + 1]);
+            let model = models["snake_body"];
             model.modelMatrix = translationMatrix;
-            model.modelRotationMatrix = rotationMatrix;
             if (i > 0 || miniMapMode) {
                 model.draw();
             }
         }
+
+        // Render apples
+        for (let i = 0; i < this.apples.length; i++) {
+            this.drawWithTranslation(models["apple"], this.apples[i]);
+        }
+    }
+
+    drawWithTranslation(model, translation) {
+        let translationMatrix = mat4.create();
+        mat4.fromTranslation(translationMatrix, translation);
+
+        model.modelMatrix = translationMatrix;
+        model.draw();
     }
 
 
@@ -740,7 +790,7 @@ function setupWebGL() {
  * Load models
  */
 async function loadModels() {
-    fetch(INPUT_TRIANGLES_URL)
+    fetch(SKYBOX_URL)
         .then(function(response) {
             return response.json();
         })
@@ -752,6 +802,15 @@ async function loadModels() {
             }
         });
 
+    let applePromise = fetch(APPLE_URL)
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(model) {
+            return new Model(model.vertices, model.normals,
+                model.uvs, model.triangles, model.material);
+        });
+    
     let snakeBodyPromise = fetch(SNAKE_BODY_URL)
         .then(function(response) {
             return response.json();
@@ -761,6 +820,7 @@ async function loadModels() {
                             model.triangles, model.material);
         });
 
+    models["apple"] = await applePromise;
     models["snake_body"] = await snakeBodyPromise;
 } // end load models
 
