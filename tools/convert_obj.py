@@ -30,7 +30,13 @@ def parse_obj(filename):
         "uvs": [],
         "triangles": []
     }
+    meta = {
+        "normals": [],
+        "uvs": []
+    }
     with open(filename, "r") as f:
+        faceLoading = False
+
         for line in f.readlines():
             line = line.strip()
             if line.startswith("o"):
@@ -38,21 +44,35 @@ def parse_obj(filename):
             elif line.startswith("v "):
                 data["vertices"].append(arr_float(line.split(" ")[1:]))
             elif line.startswith("vn"):
-                data["normals"].append(arr_float(line.split(" ")[1:]))
+                meta["normals"].append(arr_float(line.split(" ")[1:]))
             elif line.startswith("vt"):
-                data["uvs"].append(arr_float(line.split(" ")[1:]))
+                meta["uvs"].append(arr_float(line.split(" ")[1:]))
             elif line.startswith("f"):
+                if (not faceLoading):
+                    faceLoading = True
+
+                    # If we will be doing index separation, we need to get data's normals initialized 
+                    # to the right lengths. Otherwise, we just move them over in their current order.
+                    if "/" in line:
+                        data["normals"] = [None] * len(data["vertices"])
+                        data["uvs"] = [None] * len(data["vertices"])
+                    else:
+                        data["normals"] = meta["normals"]
+                        data["uvs"] = meta["uvs"]
+
                 indices = line.split(" ")[1:]
+
+                # If the faces are split into indices for the vertex, uvs, and normals separately,
+                # Will reorganize them to work with current convention.
                 if "/" in line:
-                    # Although OBJ files can technically index vertices, normals,
-                    # and texture coordinates separately, our format can not
+
                     for i in range(len(indices)):
                         idx = indices[i]
                         idxs = idx.split("/")
-                        if not all(x == idxs[0] for x in idxs):
-                            raise ValueError("This model has separate indexing, which is not supported")
-                        else:
-                            indices[i] = idxs[0]
+                        data["uvs"][int(idxs[0])-1] = meta["uvs"][int(idxs[1])-1]
+                        data["normals"][int(idxs[0])-1] = meta["normals"][int(idxs[2])-1]
+                        indices[i] = idxs[0]
+                        
                 data["triangles"].append(dec_all(arr_float(indices)))
 
     return data
