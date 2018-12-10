@@ -44,13 +44,24 @@ class GameState {
     constructor() {
         this.lastSnakeTick = Date.now();
         this.snakeTime = 0; //increments each time the snake moves forward
-        this.snakeSpeed = 4.5; // Snake tick frequency: number of times the snake moves forward per second.
+        this.snakeSpeed = 3.5; // Snake tick frequency: number of times the snake moves forward per second.
         this.snakeDirection = vec3.fromValues(0, 0, 1); //into the screen
         this.snakeUp = vec3.fromValues(0, 1, 0); //straight up
         this.lastControlInput = ControlsEnum.none;
         this.position = vec3.fromValues(0, 0, 0);
         this.snakePieces = GameState.createInitialSnake(100);
+
         this.camera = this.createInitialCamera();
+        this.lastTickValues = {
+            snakeDirection: vec3.clone(this.snakeDirection),
+            snakeUp: vec3.clone(this.snakeUp),
+            position: vec3.clone(this.position)
+        }
+        this.interpolation = {
+            snakeDirection: vec3.create(),
+            snakeUp: vec3.create(),
+            position: vec3.create()
+        }
     }
 
     /** Returns a set of coordinates that act as the initial snake at the start of the game */
@@ -64,7 +75,7 @@ class GameState {
 
     /** Returns an initial camera. Uses `this.snakePieces` to determine where the initial camera should be */
     createInitialCamera() {
-        return new Camera(this.position, vec3.clone(this.snakeDirection), vec3.clone(this.snakeUp));
+        return new Camera(vec3.clone(this.position), vec3.clone(this.snakeDirection), vec3.clone(this.snakeUp));
     }
 
     /** Main call point for updating the GameState. This function then determines which sub-updates to call for the GameState. */
@@ -74,11 +85,16 @@ class GameState {
             this.lastSnakeTick = curTime;
             this.moveForward();
         }
+        this.updateCamera();
     }
 
     /** Updates time one tick forward, processing the user input,
      * and progressing the snake along the `snakeDirection` and updating the `snakePieces` list. */
     moveForward() {
+        vec3.copy(this.lastTickValues.snakeDirection, this.snakeDirection);
+        vec3.copy(this.lastTickValues.snakeUp, this.snakeUp);
+        vec3.copy(this.lastTickValues.position, this.position);
+
         let snakeLeft = vec3.create(); vec3.cross(snakeLeft, this.snakeUp, this.snakeDirection); // we are in a weird left handed coordinate system
 
         switch (this.lastControlInput) {
@@ -123,13 +139,6 @@ class GameState {
         // Pop the old tail
         this.snakePieces.pop();
 
-        // For temporary debugging
-        vec3.copy(this.camera.eye, this.position);
-        vec3.add(this.camera.center, this.camera.eye, this.snakeDirection);
-        vec3.copy(this.camera.up, this.snakeUp);
-        mat4.lookAt(this.camera.transform, this.camera.eye, this.camera.center, this.camera.up);
-        // end temporary
-
         // At End
         this.lastControlInput = ControlsEnum.none; //input has been processed, clear it
         this.snakeTime++;
@@ -137,7 +146,25 @@ class GameState {
 
     /** Updates the current camera positioning and rotation so that it is animated nicely */
     updateCamera() {
+        let curTime = Date.now();
+        let percent = (curTime - this.lastSnakeTick) * this.snakeSpeed / 1000.0;//percent of the way through the interpolation
+        GameState.interpolate(this.interpolation.snakeDirection, this.lastTickValues.snakeDirection, this.snakeDirection, percent);
+        GameState.interpolate(this.interpolation.snakeUp, this.lastTickValues.snakeUp, this.snakeUp, percent);
+        GameState.interpolate(this.interpolation.position, this.lastTickValues.position, this.position, percent);
 
+        vec3.copy(this.camera.eye, this.interpolation.position);
+        vec3.add(this.camera.center, this.camera.eye, this.interpolation.snakeDirection);
+        vec3.copy(this.camera.up, this.interpolation.snakeUp);
+        mat4.lookAt(this.camera.transform, this.camera.eye, this.camera.center, this.camera.up);
+    }
+
+    /** Interpolates from the vector `from` to the vector `to` by amount `percent` (between 0 and 1).
+     * Puts the result into the vector `out`.
+    */
+    static interpolate(out, from, to, percent) {
+        vec3.subtract(out, to, from);
+        vec3.scale(out, out, percent);
+        vec3.add(out, out, from);
     }
 
     /**
