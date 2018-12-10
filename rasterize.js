@@ -60,6 +60,7 @@ class GameState {
         this.position = vec3.fromValues(0, 0, 0);
         this.snakePieces = this.createInitialSnake(100);
         this.apples = [];
+        this.toGrow = 0;
 
         this.camera = this.createInitialCamera();
         this.minimapCamera = this.createInitialCamera();
@@ -142,8 +143,16 @@ class GameState {
         this.snakePieces.unshift(vec3.fromValues(-this.snakeDirection[0],
                                                  -this.snakeDirection[1],
                                                  -this.snakeDirection[2]));
-        // Pop the old tail
-        let popped = this.snakePieces.pop();
+
+        let popped = undefined;
+        if (this.toGrow > 0) {
+            this.toGrow--;
+        } else {
+            // Pop the old tail
+            popped = this.snakePieces.pop();
+        }
+
+        console.log(this.snakePieces.length);
 
         // Detect collision with itself
         let sum = vec3.create();
@@ -154,7 +163,9 @@ class GameState {
                 this.dead = true;
                 vec3.copy(this.position, this.lastTickValues.position); //so that camera doesn't go inside
                 this.snakePieces.shift();
-                this.snakePieces.push(popped);
+                if (popped != undefined) {
+                    this.snakePieces.push(popped);
+                }
                 break;
             }
         }
@@ -164,7 +175,7 @@ class GameState {
             let difference = vec3.create();
             vec3.subtract(difference, this.position, this.apples[i]);
             if(vec3.length(difference) < 0.1) {
-                // this.snakeSize += 5;
+                this.toGrow += 5;
                 console.log("Apple eaten!");
                 this.apples.splice(i, 1);
                 this.growApple();
