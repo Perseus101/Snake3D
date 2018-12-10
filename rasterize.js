@@ -161,6 +161,7 @@ class GameState {
         for (let i = 0; i < this.snakePieces.length; i++) {
             vec3.add(sum, this.snakePieces[i], sum);
             if(vec3.length(sum) < 0.1) {
+                document.getElementById("deathScore").innerHTML = this.snakePieces.length;
                 showMenu("deathScreen");
                 this.dead = true;
                 vec3.copy(this.position, this.lastTickValues.position); //so that camera doesn't go inside
