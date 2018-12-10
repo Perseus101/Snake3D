@@ -9,7 +9,7 @@ var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in
 var shader = null;
 
 /* webgl globals */
-var canvas;
+var canvas = undefined;
 var gl = null; // the all powerful gl object. It's all here folks!
 var objects = [];
 var models = {};
@@ -58,9 +58,9 @@ class GameState {
         this.lastSnakeTick = Date.now();
         this.snakeTime = 0; //increments each time the snake moves forward
         this.snakeSpeed = 3.5; // Snake tick frequency: number of times the snake moves forward per second.
-        this.snakeDirection = vec3.fromValues(0, 0, 1); //into the screen
-        this.snakeUp = vec3.fromValues(0, 1, 0); //straight up
-        this.lastControlInput = ControlsEnum.none;
+        this.snakeDirection = vec3.fromValues(0, 1, 0); //into the screen
+        this.snakeUp = vec3.fromValues(0, 0, -1); //straight up
+        this.controlInputQueue = [];
         this.position = vec3.fromValues(0, 0, 0);
         this.snakePieces = this.createInitialSnake(0);
         this.updateScore();
@@ -111,7 +111,7 @@ class GameState {
 
         let snakeLeft = vec3.create(); vec3.cross(snakeLeft, this.snakeUp, this.snakeDirection); // we are in a weird left handed coordinate system
 
-        switch (this.lastControlInput) {
+        switch (this.controlInputQueue.shift()) {
             case ControlsEnum.left:
                 this.snakeDirection = snakeLeft;
                 break;
@@ -161,7 +161,6 @@ class GameState {
         }
 
         // Detect out of bounds
-        window.test = this.position;
         if (this.position[0] >= GRID_SIZE
                 || this.position[1] >= GRID_SIZE
                 || this.position[2] >= GRID_SIZE ) {
@@ -198,7 +197,6 @@ class GameState {
         }
 
         // At End
-        this.lastControlInput = ControlsEnum.none; //input has been processed, clear it
         this.snakeTime++;
     }
 
@@ -237,7 +235,6 @@ class GameState {
         for (let i = 0; i < 3; i++) {
             position.push(Math.floor((Math.random() * max * 2) + 1) - max);
         }
-        console.log("New apple in position: " + position);
         return position;
     }
 
@@ -258,13 +255,7 @@ class GameState {
         mat4.lookAt(this.camera.transform, this.camera.eye, this.camera.center, this.camera.up);
 
         let interpLeft = vec3.create(); vec3.cross(interpLeft, this.interpolation.snakeUp, this.interpolation.snakeDirection);
-        let upOff = vec3.create(); vec3.scale(upOff, this.interpolation.snakeUp, -50);
-        let rightOff = vec3.create(); vec3.scale(rightOff, interpLeft, 100);
-        let backOff = vec3.create(); vec3.scale(backOff, this.interpolation.snakeDirection, -80);
-
-        let offset = vec3.create();
-        vec3.add(offset, upOff, rightOff);
-        vec3.add(offset, offset, backOff);
+        let offset = vec3.create(); vec3.scale(offset, this.interpolation.snakeDirection, -80);
 
         vec3.copy(this.minimapCamera.eye, this.interpolation.position);
         vec3.add(this.minimapCamera.eye, this.minimapCamera.eye, offset);
@@ -308,28 +299,34 @@ class GameState {
         let transform = mat4.create();
         mat4.perspective(transform, Math.PI * 0.5, canvas.width / canvas.height, 0.1, 2000);
         mat4.multiply(transform, transform, camera.getTransform());
+
+        if (miniMapMode) {
+            let translate = mat4.create(); mat4.fromTranslation(translate, vec3.fromValues(0.8, 0.7, 0));
+            mat4.multiply(transform, translate, transform);
+        }
+
         gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
         gl.uniform3fv(eyeUniform, camera.getEye());
 
-        let translationMatrix = mat4.create();
-        mat4.fromTranslation(translationMatrix, this.position);
-
+        let sum = vec3.clone(this.position);
         // Render snake pieces
         for (let i = 0; i < this.snakePieces.length; i++) {
-            let segmentTranslationMatrix = mat4.create();
-            mat4.fromTranslation(segmentTranslationMatrix, this.snakePieces[i]);
-            mat4.multiply(translationMatrix, segmentTranslationMatrix, translationMatrix);
+            let piece = this.snakePieces[i];
+            vec3.add(sum, sum, piece);
 
-            let model = models["snake_body"];
-            model.modelMatrix = translationMatrix;
             if (i > 0 || miniMapMode) {
-                model.draw();
+                this.drawWithTranslation(models["snake_body"], sum);
             }
         }
 
         // Render apples
         for (let i = 0; i < this.apples.length; i++) {
             this.drawWithTranslation(miniMapMode ? models["minimap_apple"] : models["apple"], this.apples[i]);
+        }
+
+        if (miniMapMode) {
+            gl.clear(gl.DEPTH_BUFFER_BIT);
+            this.drawWithTranslation(models["minimap_snake_head"], this.position);
         }
     }
 
@@ -344,27 +341,33 @@ class GameState {
 
     // CONTROLS
     turnLeft() {
-        this.lastControlInput = ControlsEnum.left;
+        this.pushInput(ControlsEnum.left);
     }
 
     turnRight() {
-        this.lastControlInput = ControlsEnum.right;
+        this.pushInput(ControlsEnum.right);
     }
 
     turnUp() {
-        this.lastControlInput = ControlsEnum.up;
+        this.pushInput(ControlsEnum.up);
     }
 
     turnDown() {
-        this.lastControlInput = ControlsEnum.down;
+        this.pushInput(ControlsEnum.down);
     }
 
     rotateLeft() {
-        this.lastControlInput = ControlsEnum.rotateLeft
+        this.pushInput(ControlsEnum.rotateLeft);
     }
 
     rotateRight() {
-        this.lastControlInput = ControlsEnum.rotateRight;
+        this.pushInput(ControlsEnum.rotateRight);
+    }
+
+    pushInput(input) {
+        if (this.controlInputQueue.length < 2) {
+            this.controlInputQueue.push(input);
+        }
     }
 
     updateScore() {
@@ -712,14 +715,34 @@ function getTextureFile(url) {
     return texture;
 }
 
+function onResize() {
+    var realToCSSPixels = window.devicePixelRatio;
+
+    // Lookup the size the browser is displaying the canvas in CSS pixels
+    // and compute a size needed to make our drawingbuffer match it in
+    // device pixels.
+    var displayWidth = Math.floor(gl.canvas.clientWidth * realToCSSPixels);
+    var displayHeight = Math.floor(gl.canvas.clientHeight * realToCSSPixels);
+
+    // Check if the canvas is not the same size.
+    if (gl.canvas.width !== displayWidth ||
+        gl.canvas.height !== displayHeight) {
+
+        // Make the canvas the same size
+        gl.canvas.width = displayWidth;
+        gl.canvas.height = displayHeight;
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    }
+}
+
 // set up the webGL environment
 function setupWebGL() {
 
     // Get the canvas and context
     canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
     gl = canvas.getContext("webgl"); // get a webgl object from it
+
+    onResize();
 
     try {
         if (gl == null) {
@@ -782,10 +805,24 @@ async function loadModels() {
         })
         .then(function(model) {
             let material = model.material;
-            material.diffuse = [1.0,0.1,0.1];
-            material.ambient = [0.1,0.1,0.1];
+            material.diffuse = [0.5,0.1,0.1];
+            material.ambient = [0.5,0.1,0.1];
+            material.alpha = 0.9;
             return new Model(model.vertices, model.normals, model.uvs,
                             model.triangles, material);
+        });
+
+    let minimapSnakeHead = fetch(SNAKE_BODY_URL)
+        .then(function (response) {
+            return response.json();
+        })
+        .then(function (model) {
+            let material = model.material;
+            material.ambient = [1.0, 1.0, 1.0];
+            material.diffuse = [0, 0, 0];
+            material.alpha = 1.0;
+            return new Model(model.vertices, model.normals, model.uvs,
+                model.triangles, material);
         });
 
     let wallModel = await wallPromise;
@@ -821,9 +858,11 @@ async function loadModels() {
     objects.push(westWall);
     objects.push(topWall);
     objects.push(bottomWall);
+
     models["apple"] = await applePromise;
     models["snake_body"] = await snakeBodyPromise;
     models["minimap_apple"] = await minimapApplePromise;
+    models["minimap_snake_head"] = await minimapSnakeHead;
 } // end load models
 
 // setup the webGL shaders

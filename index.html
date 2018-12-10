@@ -26,6 +26,9 @@
                 left: 0px;
                 top: 0px;
                 z-index: 10;
+                width: 100vw;
+                height: 100vh;
+                display: block;
             }
 
             .hidden {
@@ -107,7 +110,7 @@
         </style>
     </head>
 
-    <body onload="setup();" onkeydown="keydown(event);">
+    <body onload="setup();" onkeydown="keydown(event);" onresize="onResize()">
         <canvas id="myWebGLCanvas"></canvas>
 
         <!--------------------------------- MENUS --------------------------------->
