@@ -6,6 +6,7 @@
 
         <script type="text/javascript" src="gl-matrix-min.js"></script>
         <script type="text/javascript" src="rasterize.js"></script>
+        <link href="https://fonts.googleapis.com/css?family=Orbitron" rel="stylesheet">
         <audio id="myAudio" class="hidden">
             <source src="https://archive.org/download/LifeOnMars_934/31LifeOnMars.mp3" type="audio/mpeg">
             Your browser does not support the audio element.
@@ -24,19 +25,12 @@
                 z-index: 10;
             }
 
-            #myImageCanvas {
-                position: absolute;
-                left: 0px;
-                top: 0px;
-                z-index: 0;
-            }
-
             .hidden {
                 display: none;
             }
 
             .menu {
-                font-family: Arial, Helvetica, sans-serif;
+                font-family: 'Orbitron', sans-serif;
                 position: absolute;
                 left: 0px;
                 top: 0px;
@@ -44,15 +38,36 @@
                 height: 100%;
                 z-index: 11;
                 text-align: center;
+                background-color: black;
+                color: #57bc57;
+            }
+
+            .title {
+              font-size: 300px;
+              margin-bottom: 0px;
+            }
+
+            .subtitle {
+              font-size: 110px;
+              margin-top: -20px;
+              margin-bottom: 30px;
             }
 
             .menu > div {
-                padding-top: 20%;
+                padding-top: 0;
             }
 
             #optionsMenu table {
                 margin-left: auto;
                 margin-right: auto;
+            }
+
+            button {
+                background-color: #2d2d2d;
+                color: #ccc;
+                font-size: 30px;
+                margin: 10px;
+                border-color: #2d2d2d;
             }
         </style>
     </head>
@@ -64,7 +79,8 @@
         <!--------------------------------- MENUS --------------------------------->
         <div id="mainMenu" class="menu">
             <div>
-                <h1>Snake 3D!</h1>
+                <h1 class="title">SNAKE</h1>
+                <h1 class="subtitle">3D</h1>
                 <button onclick="main();">Start</button>
                 <button onclick='showMenu("optionsMenu");'>Options</button>
             </div>

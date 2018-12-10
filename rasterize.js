@@ -712,20 +712,6 @@ function getTextureFile(url) {
 // set up the webGL environment
 function setupWebGL() {
 
-    // Get the image canvas, render an image in it
-    var imageCanvas = document.getElementById("myImageCanvas"); // create a 2d canvas
-    var cw = imageCanvas.width = window.innerWidth,
-        ch = imageCanvas.height = window.innerHeight;
-    imageContext = imageCanvas.getContext("2d");
-    var bkgdImage = new Image();
-    bkgdImage.crossOrigin = "Anonymous";
-    bkgdImage.src = "https://ncsucgclass.github.io/prog4/sky.jpg";
-    bkgdImage.onload = function(){
-        var iw = bkgdImage.width, ih = bkgdImage.height;
-        imageContext.drawImage(bkgdImage,0,0,iw,ih,0,0,cw,ch);
-    } // end onload callback
-
-
     // Get the canvas and context
     canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
     canvas.width = window.innerWidth;
@@ -736,7 +722,7 @@ function setupWebGL() {
         if (gl == null) {
             throw "unable to create gl context -- is your browser gl ready?";
         } else {
-            gl.clearColor(0.0, 0.0, 0.0, 0.0); // transparent when we clear the frame buffer
+            gl.clearColor(0.0, 0.0, 0.0, 1.0); // transparent when we clear the frame buffer
             gl.clearDepth(1.0); // use max when we clear the depth buffer
             gl.enable(gl.DEPTH_TEST); // use hidden surface removal (with zbuffering)
             gl.enable(gl.BLEND);
@@ -864,6 +850,8 @@ function reset() {
     gameState.reset();
 }
 
+var doneSettingUp = false;
+
 /**
  * Setup variables and data on startup
  */
@@ -877,6 +865,8 @@ async function setup() {
     gameState = new GameState();
 
     await modelLoadPromise; // Wait for models to finish loading
+
+    doneSettingUp = true;
 }
 
 // render the loaded model
@@ -902,6 +892,10 @@ function sleep(ms) {
 }
 
 async function main() {
+    while (!doneSettingUp) {
+        await sleep(30);
+    }
+
     var mainMenu = document.getElementById("mainMenu");
     document.getElementById("myAudio").play();
     mainMenu.classList.add("hidden");
