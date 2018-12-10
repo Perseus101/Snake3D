@@ -190,7 +190,9 @@ class GameState {
             let [model, rotationMatrix] = this.getPieceAndOrientation(this.snakePieces[i - 1], this.snakePieces[i], this.snakePieces[i + 1]);
             model.modelMatrix = translationMatrix;
             model.modelRotationMatrix = rotationMatrix;
-            model.draw(false, false);
+            if (i > 0) {
+                model.draw(false, false);
+            }
         }
     }
 
