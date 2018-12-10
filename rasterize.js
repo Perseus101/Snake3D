@@ -116,6 +116,13 @@ class GameState {
 
         vec3.add(this.position, this.position, this.snakeDirection);
 
+        // Add a new head piece
+        this.snakePieces.unshift(vec3.fromValues(-this.snakeDirection[0],
+                                                 -this.snakeDirection[1],
+                                                 -this.snakeDirection[2]));
+        // Pop the old tail
+        this.snakePieces.pop();
+
         // For temporary debugging
         vec3.copy(this.camera.eye, this.position);
         vec3.add(this.camera.center, this.camera.eye, this.snakeDirection);
