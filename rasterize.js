@@ -1,5 +1,5 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
-const INPUT_TRIANGLES_URL = "triangles.json"; // triangles file loc
+const INPUT_TRIANGLES_URL = "space.json"; // triangles file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 
 var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
