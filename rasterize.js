@@ -161,9 +161,9 @@ class GameState {
         }
 
         // Detect out of bounds
-        if (this.position[0] >= GRID_SIZE
-                || this.position[1] >= GRID_SIZE
-                || this.position[2] >= GRID_SIZE ) {
+        if (Math.abs(this.position[0]) >= GRID_SIZE
+                || Math.abs(this.position[1]) >= GRID_SIZE
+                || Math.abs(this.position[2]) >= GRID_SIZE ) {
             this.die();
             if (popped != undefined) {
                 this.snakePieces.push(popped);
