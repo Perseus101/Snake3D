@@ -1,4 +1,4 @@
-const MENUS = ["mainMenu", "optionsMenu", "deathScreen"];
+const MENUS = ["mainMenu", "optionsMenu", "deathScreen", "scoreText"];
 var activeMenu = "mainMenu";
 
 var invertY = false;
@@ -110,6 +110,8 @@ async function main() {
     if ( musicEnabled ) {
         document.getElementById("myAudio").play();
     }
+
+    showMenu("scoreText");
 
     gameState.reset();
 
