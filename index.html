@@ -61,17 +61,43 @@
                 padding-top: 0;
             }
 
-            #optionsMenu table {
-                margin-left: auto;
-                margin-right: auto;
-            }
-
             .menu-button {
                 background-color: #2d2d2d;
                 color: #ccc;
                 font-size: 3vh;
                 margin: 2vh;
                 border-color: #2d2d2d;
+            }
+
+            #mainMenu {
+                height: 100%;
+                background-color: black;
+            }
+
+            #optionsMenu {
+                padding-top: 40vh;
+                height: 60vh;
+                background-color: black;
+            }
+
+            #optionsMenu table {
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            #scoreText {
+                text-align: left;
+                background-color: #0000;
+                padding: 20px;
+                font-size: 50px;
+                width: 0px;
+            }
+
+            #deathScreen {
+                background-color: #000;
+                margin-top: 40vh;
+                color: white;
+                height: 0px;
             }
 
             button {
@@ -88,7 +114,7 @@
         <canvas id="myWebGLCanvas"></canvas>
 
         <!--------------------------------- MENUS --------------------------------->
-        <div id="mainMenu" class="menu" style="height: 100%; background-color: black;">
+        <div id="mainMenu" class="menu">
             <div>
                 <h1 class="title">SNAKE</h1>
                 <h1 class="subtitle">3D</h1>
@@ -96,7 +122,7 @@
                 <button class="menu-button" onclick='showMenu("optionsMenu");'>Options</button>
             </div>
         </div>
-        <div id="optionsMenu" class="menu hidden" style="padding-top: 40vh; height: 60vh; background-color: black;">
+        <div id="optionsMenu" class="menu hidden">
             <div>
                 <h1>Snake 3D Options</h1>
                 <table>
@@ -117,10 +143,10 @@
                 <button onclick='showMenu("mainMenu");'>Back</button>
             </div>
         </div>
-        <div id="scoreText" class="menu hidden" style="text-align: left; background-color: #0000; padding: 20px; font-size: 50px; width: 0px;">
+        <div id="scoreText" class="menu hidden">
             <h1>0</h1>
         </div>
-        <div id="deathScreen" class="hidden menu" style="background-color: #0000; padding-top: 40vh; color: black; height: 0px;">
+        <div id="deathScreen" class="hidden menu">
             <div>
                 <h1>You have died. Your score was <span id="deathScore">0</span>!</h1>
                 <h3>Tip: Try to avoid colliding with youself.</h3>
