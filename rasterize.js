@@ -74,7 +74,9 @@ class GameState {
             position: vec3.create()
         }
 
-        this.growApple();
+        for (let i = 0; i < 5; i++) {
+            this.growApple();
+        }
     }
 
     /** Returns an initial camera. Uses `this.snakePieces` to determine where the initial camera should be */
@@ -249,10 +251,8 @@ class GameState {
     render(miniMapMode) {
         if (miniMapMode) {
             models["snake_body"].material.alpha = 0.3;
-            models["apple"].material.ambient[0] = 1.0;
         } else {
             models["snake_body"].material.alpha = 1;
-            models["apple"].material.ambient[0] = 0.3;
         }
 
         let camera = this.camera;
@@ -283,7 +283,7 @@ class GameState {
 
         // Render apples
         for (let i = 0; i < this.apples.length; i++) {
-            this.drawWithTranslation(models["apple"], this.apples[i]);
+            this.drawWithTranslation(miniMapMode ? models["minimap_apple"] : models["apple"], this.apples[i]);
         }
     }
 
@@ -415,6 +415,7 @@ class Camera {
 }
 
 class Model {
+
     constructor(vertices, normals, uvs, indices, material) {
         this.triBufferSize = indices.length * 3;
         this.triangles = indices;
@@ -820,8 +821,21 @@ async function loadModels() {
                             model.triangles, model.material);
         });
 
+    let minimapApplePromise = fetch(SNAKE_BODY_URL)
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(model) {
+            let material = model.material;
+            material.diffuse = [1.0,0.1,0.1];
+            material.ambient = [0.1,0.1,0.1];
+            return new Model(model.vertices, model.normals, model.uvs,
+                            model.triangles, material);
+        });
+
     models["apple"] = await applePromise;
     models["snake_body"] = await snakeBodyPromise;
+    models["minimap_apple"] = await minimapApplePromise;
 } // end load models
 
 // setup the webGL shaders
