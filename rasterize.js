@@ -44,13 +44,24 @@ class GameState {
     constructor() {
         this.lastSnakeTick = Date.now();
         this.snakeTime = 0; //increments each time the snake moves forward
-        this.snakeSpeed = 4.5; // Snake tick frequency: number of times the snake moves forward per second.
+        this.snakeSpeed = 3.5; // Snake tick frequency: number of times the snake moves forward per second.
         this.snakeDirection = vec3.fromValues(0, 0, 1); //into the screen
         this.snakeUp = vec3.fromValues(0, 1, 0); //straight up
         this.lastControlInput = ControlsEnum.none;
         this.position = vec3.fromValues(0, 0, 0);
         this.snakePieces = GameState.createInitialSnake(100);
+
         this.camera = this.createInitialCamera();
+        this.lastTickValues = {
+            snakeDirection: vec3.clone(this.snakeDirection),
+            snakeUp: vec3.clone(this.snakeUp),
+            position: vec3.clone(this.position)
+        }
+        this.interpolation = {
+            snakeDirection: vec3.create(),
+            snakeUp: vec3.create(),
+            position: vec3.create()
+        }
     }
 
     /** Returns a set of coordinates that act as the initial snake at the start of the game */
@@ -64,7 +75,7 @@ class GameState {
 
     /** Returns an initial camera. Uses `this.snakePieces` to determine where the initial camera should be */
     createInitialCamera() {
-        return new Camera(this.position, vec3.clone(this.snakeDirection), vec3.clone(this.snakeUp));
+        return new Camera(vec3.clone(this.position), vec3.clone(this.snakeDirection), vec3.clone(this.snakeUp));
     }
 
     /** Main call point for updating the GameState. This function then determines which sub-updates to call for the GameState. */
@@ -74,11 +85,16 @@ class GameState {
             this.lastSnakeTick = curTime;
             this.moveForward();
         }
+        this.updateCamera();
     }
 
     /** Updates time one tick forward, processing the user input,
      * and progressing the snake along the `snakeDirection` and updating the `snakePieces` list. */
     moveForward() {
+        vec3.copy(this.lastTickValues.snakeDirection, this.snakeDirection);
+        vec3.copy(this.lastTickValues.snakeUp, this.snakeUp);
+        vec3.copy(this.lastTickValues.position, this.position);
+
         let snakeLeft = vec3.create(); vec3.cross(snakeLeft, this.snakeUp, this.snakeDirection); // we are in a weird left handed coordinate system
 
         switch (this.lastControlInput) {
@@ -116,12 +132,12 @@ class GameState {
 
         vec3.add(this.position, this.position, this.snakeDirection);
 
-        // For temporary debugging
-        vec3.copy(this.camera.eye, this.position);
-        vec3.add(this.camera.center, this.camera.eye, this.snakeDirection);
-        vec3.copy(this.camera.up, this.snakeUp);
-        mat4.lookAt(this.camera.transform, this.camera.eye, this.camera.center, this.camera.up);
-        // end temporary
+        // Add a new head piece
+        this.snakePieces.unshift(vec3.fromValues(-this.snakeDirection[0],
+                                                 -this.snakeDirection[1],
+                                                 -this.snakeDirection[2]));
+        // Pop the old tail
+        this.snakePieces.pop();
 
         // At End
         this.lastControlInput = ControlsEnum.none; //input has been processed, clear it
@@ -130,7 +146,25 @@ class GameState {
 
     /** Updates the current camera positioning and rotation so that it is animated nicely */
     updateCamera() {
+        let curTime = Date.now();
+        let percent = (curTime - this.lastSnakeTick) * this.snakeSpeed / 1000.0;//percent of the way through the interpolation
+        GameState.interpolate(this.interpolation.snakeDirection, this.lastTickValues.snakeDirection, this.snakeDirection, percent);
+        GameState.interpolate(this.interpolation.snakeUp, this.lastTickValues.snakeUp, this.snakeUp, percent);
+        GameState.interpolate(this.interpolation.position, this.lastTickValues.position, this.position, percent);
 
+        vec3.copy(this.camera.eye, this.interpolation.position);
+        vec3.add(this.camera.center, this.camera.eye, this.interpolation.snakeDirection);
+        vec3.copy(this.camera.up, this.interpolation.snakeUp);
+        mat4.lookAt(this.camera.transform, this.camera.eye, this.camera.center, this.camera.up);
+    }
+
+    /** Interpolates from the vector `from` to the vector `to` by amount `percent` (between 0 and 1).
+     * Puts the result into the vector `out`.
+    */
+    static interpolate(out, from, to, percent) {
+        vec3.subtract(out, to, from);
+        vec3.scale(out, out, percent);
+        vec3.add(out, out, from);
     }
 
     /**
@@ -156,7 +190,9 @@ class GameState {
             let [model, rotationMatrix] = this.getPieceAndOrientation(this.snakePieces[i - 1], this.snakePieces[i], this.snakePieces[i + 1]);
             model.modelMatrix = translationMatrix;
             model.modelRotationMatrix = rotationMatrix;
-            model.draw(false, false);
+            if (i > 0) {
+                model.draw(false, false);
+            }
         }
     }
 
@@ -690,7 +726,8 @@ function setupWebGL() {
 
     // Get the image canvas, render an image in it
     var imageCanvas = document.getElementById("myImageCanvas"); // create a 2d canvas
-    var cw = imageCanvas.width, ch = imageCanvas.height;
+    var cw = imageCanvas.width = window.innerWidth,
+        ch = imageCanvas.height = window.innerHeight;
     imageContext = imageCanvas.getContext("2d");
     var bkgdImage = new Image();
     bkgdImage.crossOrigin = "Anonymous";
@@ -703,6 +740,8 @@ function setupWebGL() {
 
     // Get the canvas and context
     canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
     gl = canvas.getContext("webgl"); // get a webgl object from it
 
     try {
@@ -893,7 +932,7 @@ function setupShaders() {
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
     var transform = mat4.create();
-    mat4.perspective(transform, Math.PI*0.75, canvas.width/canvas.height, 0.01, 100);
+    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.01, 100);
 
     mat4.multiply(transform, transform, gameState.camera.getTransform());
 
