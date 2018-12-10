@@ -189,8 +189,21 @@ class GameState {
 
     /** Grows a new apple somewhere on the play field that doesn't collide with the snake */
     growApple() {
-        this.apples.push(this.getRandomPosition());
-        // TODO: check to see if this location is within the snake already
+        let applePos = this.getRandomPosition();
+
+        let sum = vec3.clone(this.position);
+        let difference = vec3.create();
+        for (let i = 0; i < this.snakePieces.length; i++) {
+            vec3.add(sum, this.snakePieces[i], sum);
+            vec3.subtract(difference, sum, applePos);
+            if(vec3.length(difference) < 0.1) {
+                this.growApple();
+                return;
+            }
+        }
+        
+        console.log("New apple in position: " + applePos);
+        this.apples.push(applePos);
     }
     
     /** Returns a random valid position within the playing field */
@@ -200,7 +213,7 @@ class GameState {
         for (let i = 0; i < 3; i++) {
             position.push(Math.floor((Math.random() * max * 2) + 1) - max);
         }
-        console.log("New apple in position: " + position);
+
         return position;
     }
 
