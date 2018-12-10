@@ -2,10 +2,8 @@
 const SKYBOX_URL = "space.json"; // skybox file loc
 const APPLE_URL = "gameApple.json"; // apple file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
-const MENUS = ["mainMenu", "optionsMenu", "deathScreen"];
 var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
 var shader = null;
-var activeMenu = "mainMenu";
 
 /* webgl globals */
 var canvas;
@@ -60,6 +58,7 @@ class GameState {
         this.position = vec3.fromValues(0, 0, 0);
         this.snakePieces = this.createInitialSnake(100);
         this.apples = [];
+        this.toGrow = 0;
 
         this.camera = this.createInitialCamera();
         this.minimapCamera = this.createInitialCamera();
@@ -144,8 +143,16 @@ class GameState {
         this.snakePieces.unshift(vec3.fromValues(-this.snakeDirection[0],
                                                  -this.snakeDirection[1],
                                                  -this.snakeDirection[2]));
-        // Pop the old tail
-        let popped = this.snakePieces.pop();
+
+        let popped = undefined;
+        if (this.toGrow > 0) {
+            this.toGrow--;
+        } else {
+            // Pop the old tail
+            popped = this.snakePieces.pop();
+        }
+
+        console.log(this.snakePieces.length);
 
         // Detect collision with itself
         let sum = vec3.create();
@@ -156,7 +163,9 @@ class GameState {
                 this.dead = true;
                 vec3.copy(this.position, this.lastTickValues.position); //so that camera doesn't go inside
                 this.snakePieces.shift();
-                this.snakePieces.push(popped);
+                if (popped != undefined) {
+                    this.snakePieces.push(popped);
+                }
                 break;
             }
         }
@@ -166,7 +175,7 @@ class GameState {
             let difference = vec3.create();
             vec3.subtract(difference, this.position, this.apples[i]);
             if(vec3.length(difference) < 0.1) {
-                // this.snakeSize += 5;
+                this.toGrow += 5;
                 console.log("Apple eaten!");
                 this.apples.splice(i, 1);
                 this.growApple();
@@ -902,47 +911,6 @@ function setupShaders() {
     shader = new Shader(fModulateShaderCode, vModulateShaderCode);
 } // end setup shaders
 
-/**
- * Show the menu with the given id
- * @param {String} id the id of the menu to show
- */
-function showMenu(id) {
-    for(var menuIdx in MENUS) {
-        let menuElement = document.getElementById(MENUS[menuIdx]);
-        menuElement.classList.add("hidden");
-    }
-    let menu = document.getElementById(id);
-    menu.classList.remove("hidden");
-    activeMenu = id;
-}
-
-function reset() {
-    for(var menuIdx in MENUS) {
-        let menuElement = document.getElementById(MENUS[menuIdx]);
-        menuElement.classList.add("hidden");
-    }
-    gameState.reset();
-}
-
-var doneSettingUp = false;
-
-/**
- * Setup variables and data on startup
- */
-async function setup() {
-    let modelLoadPromise = loadModels(); // Start loading models
-    setupWebGL(); // set up the webGL environment
-
-    setupShaders(); // setup the webGL shaders
-    shader.activate();
-
-    gameState = new GameState();
-
-    await modelLoadPromise; // Wait for models to finish loading
-
-    doneSettingUp = true;
-}
-
 // render the loaded model
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
@@ -959,85 +927,3 @@ function renderTriangles() {
         objects[i].draw();
     }
 } // end render triangles
-
-/* MAIN -- HERE is where execution begins after window load */
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function main() {
-    while (!doneSettingUp) {
-        await sleep(30);
-    }
-
-    var mainMenu = document.getElementById("mainMenu");
-    document.getElementById("myAudio").play();
-    mainMenu.classList.add("hidden");
-
-    gameState.reset();
-
-    while(true) {
-        gameState.update();
-        renderTriangles(); // draw the triangles using webGL
-        gameState.render(false);
-        gl.clear(gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
-        gameState.render(true);
-        await sleep(30);
-    }
-} // end main
-
-function keydown(event) {
-    if (gameState == undefined) {
-        return;
-    }
-
-    let code = event.keyCode;
-
-    var char = String.fromCharCode(code);
-    switch (char) {
-        case 'A':
-            gameState.turnLeft();
-            break;
-        case 'D':
-            gameState.turnRight();
-            break;
-        case 'S':
-            gameState.turnDown();
-            break;
-        case 'W':
-            gameState.turnUp();
-            break;
-        case 'Q':
-            gameState.rotateLeft();
-            break;
-        case 'E':
-            gameState.rotateRight();
-            break;
-
-        case ' ':
-            if(activeMenu === MENUS[2]) {
-                reset();
-            }
-            break;
-
-        default:
-            break;
-    }
-    // check arrow key codes
-    if (code == 37) {
-        //Left arrow
-        gameState.turnLeft();
-    }
-    else if (code == 39) {
-        //Right arrow
-        gameState.turnRight();
-    }
-    else if (code == 38) {
-        //Up arrow
-        gameState.turnUp();
-    }
-    else if (code == 40) {
-        //Down arrow
-        gameState.turnDown();
-    }
-}
