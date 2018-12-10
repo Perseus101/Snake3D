@@ -42,6 +42,7 @@ class GameState {
         this.snakePieces = GameState.createInitialSnake(100);
 
         this.camera = this.createInitialCamera();
+        this.minimapCamera = this.createInitialCamera();
         this.lastTickValues = {
             snakeDirection: vec3.clone(this.snakeDirection),
             snakeUp: vec3.clone(this.snakeUp),
@@ -146,6 +147,22 @@ class GameState {
         vec3.add(this.camera.center, this.camera.eye, this.interpolation.snakeDirection);
         vec3.copy(this.camera.up, this.interpolation.snakeUp);
         mat4.lookAt(this.camera.transform, this.camera.eye, this.camera.center, this.camera.up);
+
+        let interpLeft = vec3.create(); vec3.cross(interpLeft, this.interpolation.snakeUp, this.interpolation.snakeDirection);
+        let upOff = vec3.create(); vec3.scale(upOff, this.interpolation.snakeUp, -50);
+        let rightOff = vec3.create(); vec3.scale(rightOff, interpLeft, 100);
+        let backOff = vec3.create(); vec3.scale(backOff, this.interpolation.snakeDirection, -80);
+
+        let offset = vec3.create();
+        vec3.add(offset, upOff, rightOff);
+        vec3.add(offset, offset, backOff);
+
+        vec3.copy(this.minimapCamera.eye, this.interpolation.position);
+        vec3.add(this.minimapCamera.eye, this.minimapCamera.eye, offset);
+        vec3.add(this.minimapCamera.center, this.minimapCamera.eye, this.interpolation.snakeDirection);
+        // vec3.add(this.minimapCamera.center, this.minimapCamera.center, offset);
+        vec3.copy(this.minimapCamera.up, this.interpolation.snakeUp);
+        mat4.lookAt(this.minimapCamera.transform, this.minimapCamera.eye, this.minimapCamera.center, this.minimapCamera.up);
     }
 
     /** Interpolates from the vector `from` to the vector `to` by amount `percent` (between 0 and 1).
@@ -168,7 +185,23 @@ class GameState {
     }
 
     /** Draws the current game state */
-    render() {
+    render(miniMapMode) {
+        if (miniMapMode) {
+            models["snake_body"].material.alpha = 0.3;
+        } else {
+            models["snake_body"].material.alpha = 1;
+        }
+
+        let camera = this.camera;
+        if (miniMapMode) {
+            camera = this.minimapCamera;
+        }
+        let transform = mat4.create();
+        mat4.perspective(transform, Math.PI * 0.5, canvas.width / canvas.height, 0.01, 100);
+        mat4.multiply(transform, transform, camera.getTransform());
+        gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
+        gl.uniform3fv(eyeUniform, camera.getEye());
+
         let translationMatrix = mat4.create();
         mat4.fromTranslation(translationMatrix, this.position);
         for (let i = 0; i < this.snakePieces.length; i++) {
@@ -787,7 +820,7 @@ function setupShaders() {
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
     var transform = mat4.create();
-    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.01, 100);
+    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.1, 1000);
 
     mat4.multiply(transform, transform, gameState.camera.getTransform());
 
@@ -818,7 +851,9 @@ async function main() {
     while(true) {
         gameState.update();
         renderTriangles(); // draw the triangles using webGL
-        gameState.render();
+        gameState.render(false);
+        gl.clear(gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
+        gameState.render(true);
         await sleep(30);
     }
 } // end main
