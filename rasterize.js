@@ -157,8 +157,6 @@ class GameState {
             popped = this.snakePieces.pop();
         }
 
-        console.log(this.snakePieces.length);
-
         // Detect collision with itself
         let sum = vec3.create();
         for (let i = 0; i < this.snakePieces.length; i++) {
@@ -184,7 +182,6 @@ class GameState {
             if(vec3.length(difference) < 0.1) {
                 appleAudio.play();
                 this.toGrow += 20;
-                console.log("Apple eaten!");
                 this.apples.splice(i, 1);
                 this.growApple();
             }
@@ -219,7 +216,6 @@ class GameState {
         for (let i = 0; i < 3; i++) {
             position.push(Math.floor((Math.random() * max * 2) + 1) - max);
         }
-        console.log("New apple in position: " + position);
         return position;
     }
 
@@ -293,25 +289,25 @@ class GameState {
         gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
         gl.uniform3fv(eyeUniform, camera.getEye());
 
-        let translationMatrix = mat4.create();
-        mat4.fromTranslation(translationMatrix, this.position);
-
+        let sum = vec3.clone(this.position);
         // Render snake pieces
         for (let i = 0; i < this.snakePieces.length; i++) {
-            let segmentTranslationMatrix = mat4.create();
-            mat4.fromTranslation(segmentTranslationMatrix, this.snakePieces[i]);
-            mat4.multiply(translationMatrix, segmentTranslationMatrix, translationMatrix);
+            let piece = this.snakePieces[i];
+            vec3.add(sum, sum, piece);
 
-            let model = models["snake_body"];
-            model.modelMatrix = translationMatrix;
             if (i > 0 || miniMapMode) {
-                model.draw();
+                this.drawWithTranslation(models["snake_body"], sum);
             }
         }
 
         // Render apples
         for (let i = 0; i < this.apples.length; i++) {
             this.drawWithTranslation(miniMapMode ? models["minimap_apple"] : models["apple"], this.apples[i]);
+        }
+
+        if (miniMapMode) {
+            gl.clear(gl.DEPTH_BUFFER_BIT);
+            this.drawWithTranslation(models["minimap_snake_head"], this.position);
         }
     }
 
@@ -885,15 +881,30 @@ async function loadModels() {
         })
         .then(function(model) {
             let material = model.material;
-            material.diffuse = [1.0,0.1,0.1];
-            material.ambient = [0.1,0.1,0.1];
+            material.diffuse = [0.5,0.1,0.1];
+            material.ambient = [0.5,0.1,0.1];
+            material.alpha = 0.9;
             return new Model(model.vertices, model.normals, model.uvs,
                             model.triangles, material);
+        });
+
+    let minimapSnakeHead = fetch(SNAKE_BODY_URL)
+        .then(function (response) {
+            return response.json();
+        })
+        .then(function (model) {
+            let material = model.material;
+            material.ambient = [1.0, 1.0, 1.0];
+            material.diffuse = [0, 0, 0];
+            material.alpha = 1.0;
+            return new Model(model.vertices, model.normals, model.uvs,
+                model.triangles, material);
         });
 
     models["apple"] = await applePromise;
     models["snake_body"] = await snakeBodyPromise;
     models["minimap_apple"] = await minimapApplePromise;
+    models["minimap_snake_head"] = await minimapSnakeHead;
 } // end load models
 
 // setup the webGL shaders
