@@ -43,14 +43,14 @@
             }
 
             .title {
-              font-size: 300px;
-              margin-bottom: 0px;
+              font-size: 39vh;
+              margin: 0px;
+              margin-top: 27vh;
             }
 
             .subtitle {
-              font-size: 110px;
-              margin-top: -20px;
-              margin-bottom: 30px;
+              font-size: 17vh;
+              margin: 0px;
             }
 
             .menu > div {
@@ -62,11 +62,19 @@
                 margin-right: auto;
             }
 
+            .menu-button {
+                background-color: #2d2d2d;
+                color: #ccc;
+                font-size: 3vh;
+                margin: 2vh;
+                border-color: #2d2d2d;
+            }
+
             button {
                 background-color: #2d2d2d;
                 color: #ccc;
-                font-size: 30px;
-                margin: 10px;
+                font-size: 20px;
+                margin: 2vh;
                 border-color: #2d2d2d;
             }
         </style>
@@ -81,11 +89,11 @@
             <div>
                 <h1 class="title">SNAKE</h1>
                 <h1 class="subtitle">3D</h1>
-                <button onclick="main();">Start</button>
-                <button onclick='showMenu("optionsMenu");'>Options</button>
+                <button class="menu-button" onclick="main();">Start</button>
+                <button class="menu-button" onclick='showMenu("optionsMenu");'>Options</button>
             </div>
         </div>
-        <div id="optionsMenu" class="menu hidden" style="padding-top: 20%;">
+        <div id="optionsMenu" class="menu hidden" style="padding-top: 40vh;">
             <div>
                 <h1>Snake 3D Options</h1>
                 <table>
@@ -97,7 +105,7 @@
                 <button onclick='showMenu("mainMenu");'>Back</button>
             </div>
         </div>
-        <div id="deathScreen" class="hidden menu" style="background-color: #0000; margin-top: 20%; color: black;">
+        <div id="deathScreen" class="hidden menu" style="background-color: #0000; margin-top: 40vh; color: black;">
             <div>
                 <h1>You have died.</h1>
                 <h3>Tip: Try to avoid colliding with youself.</h3>
