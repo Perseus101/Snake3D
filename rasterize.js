@@ -2,7 +2,7 @@
 const INPUT_TRIANGLES_URL = "triangles.json"; // triangles file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 
-var light = new vec3.fromValues(-3.0, 1.0, -0.5); // default light position in world space
+var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
 var shader = null;
 
 /* webgl globals */
@@ -213,7 +213,7 @@ class GameState {
             let [model, rotationMatrix] = this.getPieceAndOrientation(this.snakePieces[i - 1], this.snakePieces[i], this.snakePieces[i + 1]);
             model.modelMatrix = translationMatrix;
             model.modelRotationMatrix = rotationMatrix;
-            if (i > 0) {
+            if (i > 0 || miniMapMode) {
                 model.draw();
             }
         }
@@ -780,7 +780,7 @@ function setupShaders() {
             vec3 H = normalize(L + V);
 
             vec4 lightingColor = vec4(ambient
-                + diffuse * max(dot(N, L), 0.0)
+                + diffuse * abs(dot(N, L))
                 + specular * pow(max(dot(H, N), 0.0), n)
             , alpha);
             vec4 textureColor = texture2D(textureSampler, textureCoord);
