@@ -1,7 +1,10 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
 const SKYBOX_URL = "space.json"; // skybox file loc
 const APPLE_URL = "apple.json"; // apple file loc
-const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
+const SNAKE_BODY_URL = "snake.json"; // snake file loc
+const WALL_URL = "wall.json"; // wall file loc
+const GRID_SIZE = 20;
+
 var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
 var shader = null;
 
@@ -55,8 +58,8 @@ class GameState {
         this.lastSnakeTick = Date.now();
         this.snakeTime = 0; //increments each time the snake moves forward
         this.snakeSpeed = 3.5; // Snake tick frequency: number of times the snake moves forward per second.
-        this.snakeDirection = vec3.fromValues(0, 1, 0); //into the screen
-        this.snakeUp = vec3.fromValues(0, 0, -1); //straight up
+        this.snakeDirection = vec3.fromValues(0, 0, 1); //into the screen
+        this.snakeUp = vec3.fromValues(0, 1, 0); //straight up
         this.lastControlInput = ControlsEnum.none;
         this.position = vec3.fromValues(0, 0, 0);
         this.snakePieces = this.createInitialSnake(0);
@@ -157,23 +160,28 @@ class GameState {
             popped = this.snakePieces.pop();
         }
 
-        console.log(this.snakePieces.length);
+        // Detect out of bounds
+        window.test = this.position;
+        if (this.position[0] >= GRID_SIZE
+                || this.position[1] >= GRID_SIZE
+                || this.position[2] >= GRID_SIZE ) {
+            this.die();
+            if (popped != undefined) {
+                this.snakePieces.push(popped);
+            }
+            return;
+        }
 
         // Detect collision with itself
         let sum = vec3.create();
         for (let i = 0; i < this.snakePieces.length; i++) {
             vec3.add(sum, this.snakePieces[i], sum);
             if(vec3.length(sum) < 0.1) {
-                document.getElementById("deathScore").innerHTML = this.snakePieces.length;
-                deathAudio.play();
-                showMenu("deathScreen");
-                this.dead = true;
-                vec3.copy(this.position, this.lastTickValues.position); //so that camera doesn't go inside
-                this.snakePieces.shift();
+                this.die();
                 if (popped != undefined) {
                     this.snakePieces.push(popped);
                 }
-                break;
+                return;
             }
         }
 
@@ -184,7 +192,6 @@ class GameState {
             if(vec3.length(difference) < 0.1) {
                 appleAudio.play();
                 this.toGrow += 20;
-                console.log("Apple eaten!");
                 this.apples.splice(i, 1);
                 this.growApple();
             }
@@ -193,6 +200,16 @@ class GameState {
         // At End
         this.lastControlInput = ControlsEnum.none; //input has been processed, clear it
         this.snakeTime++;
+    }
+
+    die() {
+        this.dead = true;
+
+        document.getElementById("deathScore").innerHTML = this.snakePieces.length;
+        deathAudio.play();
+        showMenu("deathScreen");
+        vec3.copy(this.position, this.lastTickValues.position); //so that camera doesn't go inside
+        this.snakePieces.shift();
     }
 
     /** Grows a new apple somewhere on the play field that doesn't collide with the snake */
@@ -448,7 +465,6 @@ class Camera {
 }
 
 class Model {
-
     constructor(vertices, normals, uvs, indices, material) {
         this.triBufferSize = indices.length * 3;
         this.triangles = indices;
@@ -480,15 +496,8 @@ class Model {
             "texture": getTextureFile(material.texture)
         };
 
-        this.material_mods = {
-            "ambient": 1,
-            "diffuse": 1,
-            "specular": 1
-        }
-
         this.modelMatrix = mat4.create();
         this.modelRotationMatrix = mat4.create();
-        this.modelScaleMatrix = mat4.create();
         this.locationMatrix = mat4.create();
 
         vec3.scale(center, center, -1/vertices.length);
@@ -513,123 +522,12 @@ class Model {
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indexArray), gl.STATIC_DRAW); // put indices in the buffer
     } //end Model constructor
 
-    incrementSpecularN() {
-        this.material.n++;
-        if(this.material.n > 20) {
-            this.material.n = 0;
-        }
-    }
-
-    incrementAmbient() {
-        this.material_mods.ambient += 0.1;
-        if(this.material_mods.ambient > 1) {
-            this.material_mods.ambient = 0;
-        }
-    }
-
-    incrementDiffuse() {
-        this.material_mods.diffuse += 0.1;
-        if(this.material_mods.diffuse > 1) {
-            this.material_mods.diffuse = 0;
-        }
-    }
-
-    incrementSpecular() {
-        this.material_mods.specular += 0.1;
-        if(this.material_mods.specular > 1) {
-            this.material_mods.specular = 0;
-        }
-    }
-
-    /**
-     * Translate the model in the current orientation
-     * @param {vec3} delta the direction to move relative to
-     *                      the camera's current orientation
-     */
-    translate(delta) {
-        var translate = mat4.create();
-        mat4.fromTranslation(translate, delta);
-
-        // Transform the translation into the current view
-        var op = mat4.create();
-        mat4.multiply(op, gameState.camera.getTransform(), op);
-        mat4.multiply(op, translate, op);
-        mat4.multiply(op, gameState.camera.getTransformInv(), op);
-
-        // Add the new translation
-        mat4.multiply(this.modelMatrix, op, this.modelMatrix);
-    }
-
-    /**
-     * Rotate the model around the X axis
-     * @param {float} delta the rotation delta in radians
-     */
-    rotateX(delta) {
-        var rotate = mat4.create();
-        mat4.fromXRotation(rotate, delta);
-
-        // Transform the rotation into the current view
-        var op = mat4.create();
-        mat4.multiply(op, gameState.camera.getTransformNT(), op);
-        mat4.multiply(op, rotate, op);
-        mat4.multiply(op, gameState.camera.getTransformInvNT(), op);
-
-        // Add the new rotation
-        mat4.multiply(this.modelRotationMatrix, op, this.modelRotationMatrix);
-    }
-
-    /**
-     * Rotate the model around the Y axis
-     * @param {float} delta the rotation delta in radians
-     */
-    rotateY(delta) {
-        var rotate = mat4.create();
-        mat4.fromYRotation(rotate, delta);
-
-        // Transform the rotation into the current view
-        var op = mat4.create();
-        mat4.multiply(op, gameState.camera.getTransformNT(), op);
-        mat4.multiply(op, rotate, op);
-        mat4.multiply(op, gameState.camera.getTransformInvNT(), op);
-
-        // Add the new rotation
-        mat4.multiply(this.modelRotationMatrix, op, this.modelRotationMatrix);
-    }
-
-    /**
-     * Rotate the model around the Y axis
-     * @param {float} delta the rotation delta in radians
-     */
-    rotateZ(delta) {
-        var rotate = mat4.create();
-        mat4.fromZRotation(rotate, delta);
-
-        // Transform the rotation into the current view
-        var op = mat4.create();
-        mat4.multiply(op, gameState.camera.getTransformNT(), op);
-        mat4.multiply(op, rotate, op);
-        mat4.multiply(op, gameState.camera.getTransformInvNT(), op);
-
-        // Add the new rotation
-        mat4.multiply(this.modelRotationMatrix, op, this.modelRotationMatrix);
-    }
-
-    /**
-     * Return the center of the model
-     */
-    getCenter() {
-        var center = vec3.create();
-        mat4.getTranslation(center, this.modelMatrix);
-        return center;
-    }
-
     /**
      * Set the webgl attributes and uniforms for this model
      */
     _setAttributesAndUniforms() {
         var tempModelMatrix = mat4.create();
         mat4.multiply(tempModelMatrix, this.locationMatrix, tempModelMatrix);
-        mat4.multiply(tempModelMatrix, this.modelScaleMatrix, tempModelMatrix);
         mat4.multiply(tempModelMatrix, this.modelRotationMatrix, tempModelMatrix);
         mat4.multiply(tempModelMatrix, this.modelMatrix, tempModelMatrix);
 
@@ -638,17 +536,9 @@ class Model {
         mat4.transpose(tempModelMatrix, tempModelMatrix);
         gl.uniformMatrix4fv(modelInvTransMatrixUniform, false, tempModelMatrix);
 
-        var ambient = vec3.create();
-        vec3.scale(ambient, this.material.ambient, this.material_mods.ambient);
-        gl.uniform3fv(ambientMaterialUniform, ambient);
-
-        var diffuse = vec3.create();
-        vec3.scale(diffuse, this.material.diffuse, this.material_mods.diffuse);
-        gl.uniform3fv(diffuseMaterialUniform, diffuse);
-
-        var specular = vec3.create();
-        vec3.scale(specular, this.material.specular, this.material_mods.specular);
-        gl.uniform3fv(specularMaterialUniform, specular);
+        gl.uniform3fv(ambientMaterialUniform, this.material.ambient);
+        gl.uniform3fv(diffuseMaterialUniform, this.material.diffuse);
+        gl.uniform3fv(specularMaterialUniform, this.material.specular);
 
         gl.uniform1f(specularNMaterialUniform, this.material.n);
         gl.uniform1f(alphaUniform, this.material.alpha);
@@ -676,6 +566,35 @@ class Model {
         gl.drawElements(gl.TRIANGLES, this.triBufferSize, gl.UNSIGNED_SHORT, 0);
     }
 }//end Model class
+
+class WorldBorder extends Model {
+    constructor(vertices, normals, uvs, indices, material) {
+        super(vertices, normals, uvs, indices, material);
+        gl.bindTexture(gl.TEXTURE_2D, this.material.texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    }
+
+    /**
+     * Set the location of the wall
+     * @param {vec3} loc Location of the center of the wall
+     * @param {float} rot Rotation in radians of the wall
+     * @param {vec3} axis axis to rotate about
+     */
+    setLocation(loc, rot, axis) {
+        this.location = loc;
+        mat4.fromTranslation(this.modelMatrix, loc);
+        mat4.fromRotation(this.modelRotationMatrix, rot, axis);
+    }
+
+    draw () {
+        const MAX_ALPHA = 0.9;
+        let value = vec3.dot(gameState.interpolation.position, this.location);
+        this.material.alpha = Math.max(0, Math.pow(value / (GRID_SIZE * GRID_SIZE) * MAX_ALPHA, 7));
+        super.draw();
+    }
+}
 
 class Shader {
     constructor(fShaderCode, vShaderCode) {
@@ -811,6 +730,7 @@ function setupWebGL() {
             gl.enable(gl.DEPTH_TEST); // use hidden surface removal (with zbuffering)
             gl.enable(gl.BLEND);
             gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
         }
     } // end try
 
@@ -824,17 +744,19 @@ function setupWebGL() {
  * Load models
  */
 async function loadModels() {
-    fetch(SKYBOX_URL)
+    let skyboxPromise = fetch(SKYBOX_URL)
         .then(function(response) {
             return response.json();
         })
-        .then(function(rawModels) {
-            for(var i in rawModels) {
-                let model = rawModels[i];
-                objects.push(new Model(model.vertices, model.normals,
-                        model.uvs, model.triangles, model.material));
-            }
+        .then(function(model) {
+            return new Model(model.vertices, model.normals,
+                model.uvs, model.triangles, model.material);
         });
+
+    let wallPromise = fetch(WALL_URL)
+        .then(function(response) {
+            return response.json();
+        })
 
     let applePromise = fetch(APPLE_URL)
         .then(function(response) {
@@ -866,6 +788,39 @@ async function loadModels() {
                             model.triangles, material);
         });
 
+    let wallModel = await wallPromise;
+
+    let northWall = new WorldBorder(wallModel.vertices, wallModel.normals,
+        wallModel.uvs, wallModel.triangles, wallModel.material);
+    northWall.setLocation(vec3.fromValues(0, 0, GRID_SIZE), Math.PI * 0.5, vec3.fromValues(0, 0, 1));
+
+    let southWall = new WorldBorder(wallModel.vertices, wallModel.normals,
+        wallModel.uvs, wallModel.triangles, wallModel.material);
+    southWall.setLocation(vec3.fromValues(0, 0, -GRID_SIZE), Math.PI * -0.5, vec3.fromValues(0, 0, 1));
+
+    let westWall = new WorldBorder(wallModel.vertices, wallModel.normals,
+        wallModel.uvs, wallModel.triangles, wallModel.material);
+    westWall.setLocation(vec3.fromValues(GRID_SIZE, 0, 0), Math.PI * 0.5, vec3.fromValues(0, 1, 0));
+
+    let eastWall = new WorldBorder(wallModel.vertices, wallModel.normals,
+        wallModel.uvs, wallModel.triangles, wallModel.material);
+    eastWall.setLocation(vec3.fromValues(-GRID_SIZE, 0, 0), Math.PI * -0.5, vec3.fromValues(0, 1, 0));
+
+    let topWall = new WorldBorder(wallModel.vertices, wallModel.normals,
+        wallModel.uvs, wallModel.triangles, wallModel.material);
+    topWall.setLocation(vec3.fromValues(0, GRID_SIZE, 0), Math.PI * 0.5, vec3.fromValues(1, 0, 0));
+
+    let bottomWall = new WorldBorder(wallModel.vertices, wallModel.normals,
+        wallModel.uvs, wallModel.triangles, wallModel.material);
+    bottomWall.setLocation(vec3.fromValues(0, -GRID_SIZE, 0), Math.PI * -0.5, vec3.fromValues(1, 0, 0));
+
+    objects.push(await skyboxPromise);
+    objects.push(northWall);
+    objects.push(southWall);
+    objects.push(eastWall);
+    objects.push(westWall);
+    objects.push(topWall);
+    objects.push(bottomWall);
     models["apple"] = await applePromise;
     models["snake_body"] = await snakeBodyPromise;
     models["minimap_apple"] = await minimapApplePromise;
