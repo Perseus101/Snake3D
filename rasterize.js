@@ -197,7 +197,7 @@ class GameState {
             camera = this.minimapCamera;
         }
         let transform = mat4.create();
-        mat4.perspective(transform, Math.PI * 0.5, canvas.width / canvas.height, 0.01, 100);
+        mat4.perspective(transform, Math.PI * 0.5, canvas.width / canvas.height, 0.1, 100);
         mat4.multiply(transform, transform, camera.getTransform());
         gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
         gl.uniform3fv(eyeUniform, camera.getEye());
