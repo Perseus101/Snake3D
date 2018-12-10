@@ -22,8 +22,8 @@ def parse_obj(filename):
             "diffuse": [0.6,0.6,0.6],
             "specular": [0.3,0.3,0.3],
             "n": 11,
-            "alpha": 0.9,
-            "texture": ""
+            "alpha": 0.99,
+            "texture": "space.jpg"
         },
         "vertices": [],
         "normals": [],
@@ -32,7 +32,7 @@ def parse_obj(filename):
     }
     meta = {
         "normals": [],
-        "uvs": []
+        "vertices": []
     }
     with open(filename, "r") as f:
         faceLoading = False
@@ -42,11 +42,11 @@ def parse_obj(filename):
             if line.startswith("o"):
                 print(line)
             elif line.startswith("v "):
-                data["vertices"].append(arr_float(line.split(" ")[1:]))
+                meta["vertices"].append(arr_float(line.split(" ")[1:]))
             elif line.startswith("vn"):
                 meta["normals"].append(arr_float(line.split(" ")[1:]))
             elif line.startswith("vt"):
-                meta["uvs"].append(arr_float(line.split(" ")[1:]))
+                data["uvs"].append(arr_float(line.split(" ")[1:]))
             elif line.startswith("f"):
                 if (not faceLoading):
                     faceLoading = True
@@ -54,11 +54,11 @@ def parse_obj(filename):
                     # If we will be doing index separation, we need to get data's normals initialized 
                     # to the right lengths. Otherwise, we just move them over in their current order.
                     if "/" in line:
-                        data["normals"] = [None] * len(data["vertices"])
-                        data["uvs"] = [None] * len(data["vertices"])
+                        data["normals"] = [None] * len(data["uvs"])
+                        data["vertices"] = [None] * len(data["uvs"])
                     else:
                         data["normals"] = meta["normals"]
-                        data["uvs"] = meta["uvs"]
+                        data["vertices"] = meta["vertices"]
 
                 indices = line.split(" ")[1:]
 
@@ -69,10 +69,10 @@ def parse_obj(filename):
                     for i in range(len(indices)):
                         idx = indices[i]
                         idxs = idx.split("/")
-                        data["uvs"][int(idxs[0])-1] = meta["uvs"][int(idxs[1])-1]
-                        data["normals"][int(idxs[0])-1] = meta["normals"][int(idxs[2])-1]
-                        indices[i] = idxs[0]
-                        
+                        data["vertices"][int(idxs[1])-1] = meta["vertices"][int(idxs[0])-1]
+                        data["normals"][int(idxs[1])-1] = meta["normals"][int(idxs[2])-1]
+                        indices[i] = idxs[1]
+
                 data["triangles"].append(dec_all(arr_float(indices)))
 
     return data
@@ -88,4 +88,4 @@ if __name__ == "__main__":
     data = parse_obj(args.file)
 
     with open(args.output, "w") as f:
-        json.dump(data, f, sort_keys=True, indent=4, separators=(',', ': '))
+        json.dump([data], f, sort_keys=True, indent=4, separators=(',', ': '))
