@@ -1,6 +1,6 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
 const SKYBOX_URL = "space.json"; // skybox file loc
-const APPLE_URL = "gameApple.json"; // apple file loc
+const APPLE_URL = "apple.json"; // apple file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
 var shader = null;
