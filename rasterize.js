@@ -2,7 +2,7 @@
 const INPUT_TRIANGLES_URL = "triangles.json"; // triangles file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 
-var light = new vec3.fromValues(-3.0, 1.0, -0.5); // default light position in world space
+var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
 var shader = null;
 
 /* webgl globals */
@@ -44,6 +44,7 @@ class GameState {
         this.snakePieces = GameState.createInitialSnake(100);
 
         this.camera = this.createInitialCamera();
+        this.minimapCamera = this.createInitialCamera();
         this.lastTickValues = {
             snakeDirection: vec3.clone(this.snakeDirection),
             snakeUp: vec3.clone(this.snakeUp),
@@ -168,6 +169,22 @@ class GameState {
         vec3.add(this.camera.center, this.camera.eye, this.interpolation.snakeDirection);
         vec3.copy(this.camera.up, this.interpolation.snakeUp);
         mat4.lookAt(this.camera.transform, this.camera.eye, this.camera.center, this.camera.up);
+
+        let interpLeft = vec3.create(); vec3.cross(interpLeft, this.interpolation.snakeUp, this.interpolation.snakeDirection);
+        let upOff = vec3.create(); vec3.scale(upOff, this.interpolation.snakeUp, -50);
+        let rightOff = vec3.create(); vec3.scale(rightOff, interpLeft, 100);
+        let backOff = vec3.create(); vec3.scale(backOff, this.interpolation.snakeDirection, -80);
+
+        let offset = vec3.create();
+        vec3.add(offset, upOff, rightOff);
+        vec3.add(offset, offset, backOff);
+
+        vec3.copy(this.minimapCamera.eye, this.interpolation.position);
+        vec3.add(this.minimapCamera.eye, this.minimapCamera.eye, offset);
+        vec3.add(this.minimapCamera.center, this.minimapCamera.eye, this.interpolation.snakeDirection);
+        // vec3.add(this.minimapCamera.center, this.minimapCamera.center, offset);
+        vec3.copy(this.minimapCamera.up, this.interpolation.snakeUp);
+        mat4.lookAt(this.minimapCamera.transform, this.minimapCamera.eye, this.minimapCamera.center, this.minimapCamera.up);
     }
 
     /** Interpolates from the vector `from` to the vector `to` by amount `percent` (between 0 and 1).
@@ -190,7 +207,23 @@ class GameState {
     }
 
     /** Draws the current game state */
-    render() {
+    render(miniMapMode) {
+        if (miniMapMode) {
+            models["snake_body"].material.alpha = 0.3;
+        } else {
+            models["snake_body"].material.alpha = 1;
+        }
+
+        let camera = this.camera;
+        if (miniMapMode) {
+            camera = this.minimapCamera;
+        }
+        let transform = mat4.create();
+        mat4.perspective(transform, Math.PI * 0.5, canvas.width / canvas.height, 0.1, 1000);
+        mat4.multiply(transform, transform, camera.getTransform());
+        gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
+        gl.uniform3fv(eyeUniform, camera.getEye());
+
         let translationMatrix = mat4.create();
         mat4.fromTranslation(translationMatrix, this.position);
         for (let i = 0; i < this.snakePieces.length; i++) {
@@ -202,7 +235,7 @@ class GameState {
             let [model, rotationMatrix] = this.getPieceAndOrientation(this.snakePieces[i - 1], this.snakePieces[i], this.snakePieces[i + 1]);
             model.modelMatrix = translationMatrix;
             model.modelRotationMatrix = rotationMatrix;
-            if (i > 0) {
+            if (i > 0 || miniMapMode) {
                 model.draw();
             }
         }
@@ -769,7 +802,7 @@ function setupShaders() {
             vec3 H = normalize(L + V);
 
             vec4 lightingColor = vec4(ambient
-                + diffuse * max(dot(N, L), 0.0)
+                + diffuse * abs(dot(N, L))
                 + specular * pow(max(dot(H, N), 0.0), n)
             , alpha);
             vec4 textureColor = texture2D(textureSampler, textureCoord);
@@ -809,7 +842,7 @@ function setupShaders() {
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
     var transform = mat4.create();
-    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.01, 100);
+    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.1, 1000);
 
     mat4.multiply(transform, transform, gameState.camera.getTransform());
 
@@ -840,7 +873,9 @@ async function main() {
     while(true) {
         gameState.update();
         renderTriangles(); // draw the triangles using webGL
-        gameState.render();
+        gameState.render(false);
+        gl.clear(gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
+        gameState.render(true);
         await sleep(30);
     }
 } // end main
