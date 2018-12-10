@@ -1,19 +1,9 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
-
-/* assignment specific globals */
-const WIN_Z = 0;  // default graphics window z coord in world space
-const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in world space
-const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
 const INPUT_TRIANGLES_URL = "triangles.json"; // triangles file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 
-var light = new vec3.fromValues(-3.0, 1.0, -0.5); // default light position in world space
-
-var modulateShader = null;
-var replaceShader = null;
+var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
 var shader = null;
-
-var highlightedModel = -1;
 
 /* webgl globals */
 var canvas;
@@ -42,6 +32,8 @@ var ControlsEnum = Object.freeze({ "up": 1, "down": 2, "left": 3, "right": 4, "r
 /** GameState class */
 class GameState {
     constructor() {
+        this.dead = false;
+
         this.lastSnakeTick = Date.now();
         this.snakeTime = 0; //increments each time the snake moves forward
         this.snakeSpeed = 3.5; // Snake tick frequency: number of times the snake moves forward per second.
@@ -52,6 +44,7 @@ class GameState {
         this.snakePieces = GameState.createInitialSnake(100);
 
         this.camera = this.createInitialCamera();
+        this.minimapCamera = this.createInitialCamera();
         this.lastTickValues = {
             snakeDirection: vec3.clone(this.snakeDirection),
             snakeUp: vec3.clone(this.snakeUp),
@@ -62,6 +55,15 @@ class GameState {
             snakeUp: vec3.create(),
             position: vec3.create()
         }
+    }
+
+    /**
+     * Show the menu with the given id
+     * @param {String} id the id of the menu to show
+     */
+    static showMenu(id) {
+        let menu = document.getElementById(id);
+        menu.classList.remove("hidden");
     }
 
     /** Returns a set of coordinates that act as the initial snake at the start of the game */
@@ -80,6 +82,9 @@ class GameState {
 
     /** Main call point for updating the GameState. This function then determines which sub-updates to call for the GameState. */
     update() {
+        if(this.dead) {
+            return;
+        }
         let curTime = Date.now();
         if (curTime - this.lastSnakeTick >= 1000/this.snakeSpeed) {
             this.lastSnakeTick = curTime;
@@ -139,6 +144,14 @@ class GameState {
         // Pop the old tail
         this.snakePieces.pop();
 
+        let sum = vec3.create();
+        for (let i = 0; i < this.snakePieces.length; i++) {
+            vec3.add(sum, this.snakePieces[i], sum);
+            if(vec3.length(sum) < 0.1) {
+                GameState.showMenu("deathScreen");
+                this.dead = true;
+            }
+        }
         // At End
         this.lastControlInput = ControlsEnum.none; //input has been processed, clear it
         this.snakeTime++;
@@ -156,6 +169,22 @@ class GameState {
         vec3.add(this.camera.center, this.camera.eye, this.interpolation.snakeDirection);
         vec3.copy(this.camera.up, this.interpolation.snakeUp);
         mat4.lookAt(this.camera.transform, this.camera.eye, this.camera.center, this.camera.up);
+
+        let interpLeft = vec3.create(); vec3.cross(interpLeft, this.interpolation.snakeUp, this.interpolation.snakeDirection);
+        let upOff = vec3.create(); vec3.scale(upOff, this.interpolation.snakeUp, -50);
+        let rightOff = vec3.create(); vec3.scale(rightOff, interpLeft, 100);
+        let backOff = vec3.create(); vec3.scale(backOff, this.interpolation.snakeDirection, -80);
+
+        let offset = vec3.create();
+        vec3.add(offset, upOff, rightOff);
+        vec3.add(offset, offset, backOff);
+
+        vec3.copy(this.minimapCamera.eye, this.interpolation.position);
+        vec3.add(this.minimapCamera.eye, this.minimapCamera.eye, offset);
+        vec3.add(this.minimapCamera.center, this.minimapCamera.eye, this.interpolation.snakeDirection);
+        // vec3.add(this.minimapCamera.center, this.minimapCamera.center, offset);
+        vec3.copy(this.minimapCamera.up, this.interpolation.snakeUp);
+        mat4.lookAt(this.minimapCamera.transform, this.minimapCamera.eye, this.minimapCamera.center, this.minimapCamera.up);
     }
 
     /** Interpolates from the vector `from` to the vector `to` by amount `percent` (between 0 and 1).
@@ -178,7 +207,23 @@ class GameState {
     }
 
     /** Draws the current game state */
-    render() {
+    render(miniMapMode) {
+        if (miniMapMode) {
+            models["snake_body"].material.alpha = 0.3;
+        } else {
+            models["snake_body"].material.alpha = 1;
+        }
+
+        let camera = this.camera;
+        if (miniMapMode) {
+            camera = this.minimapCamera;
+        }
+        let transform = mat4.create();
+        mat4.perspective(transform, Math.PI * 0.5, canvas.width / canvas.height, 0.1, 1000);
+        mat4.multiply(transform, transform, camera.getTransform());
+        gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
+        gl.uniform3fv(eyeUniform, camera.getEye());
+
         let translationMatrix = mat4.create();
         mat4.fromTranslation(translationMatrix, this.position);
         for (let i = 0; i < this.snakePieces.length; i++) {
@@ -190,8 +235,8 @@ class GameState {
             let [model, rotationMatrix] = this.getPieceAndOrientation(this.snakePieces[i - 1], this.snakePieces[i], this.snakePieces[i + 1]);
             model.modelMatrix = translationMatrix;
             model.modelRotationMatrix = rotationMatrix;
-            if (i > 0) {
-                model.draw(false, false);
+            if (i > 0 || miniMapMode) {
+                model.draw();
             }
         }
     }
@@ -491,25 +536,11 @@ class Model {
     }
 
     /**
-     * Is this model opaque?
-     *
-     * Test if the material alpha ~= 1.0
-     */
-    _isOpaque() {
-        return Math.abs(this.material.alpha - 1.0) < 0.001
-    }
-    /**
      * Set the webgl attributes and uniforms for this model
-     * @param {bool} highlighted
      */
-    _setAttributesAndUniforms(highlighted) {
+    _setAttributesAndUniforms() {
         var tempModelMatrix = mat4.create();
         mat4.multiply(tempModelMatrix, this.locationMatrix, tempModelMatrix);
-        if(highlighted) {
-            var scale = mat4.create();
-            mat4.fromScaling(scale, vec3.fromValues(1.2, 1.2, 1.2));
-            mat4.multiply(tempModelMatrix, scale, tempModelMatrix);
-        }
         mat4.multiply(tempModelMatrix, this.modelScaleMatrix, tempModelMatrix);
         mat4.multiply(tempModelMatrix, this.modelRotationMatrix, tempModelMatrix);
         mat4.multiply(tempModelMatrix, this.modelMatrix, tempModelMatrix);
@@ -551,28 +582,10 @@ class Model {
 
     /**
      * Draw the model
-     * @param {bool} highlighted is this model highlighted
-     * @param {bool} opaque is the draw phase opaque
      */
-    draw(highlighted, opaque) {
-        if (this._isOpaque() != opaque) { return; }
-        this._setAttributesAndUniforms(highlighted);
+    draw() {
+        this._setAttributesAndUniforms();
         gl.drawElements(gl.TRIANGLES, this.triBufferSize, gl.UNSIGNED_SHORT, 0);
-    }
-
-    /**
-     * Draw the triangle at index in the model
-     * @param {bool} highlighted is this model highlighted
-     * @param {int} index index of the triangle to draw
-     * @param {bool} opaque is the draw phase opaque
-     */
-    drawTriangle(highlighted, index, opaque) {
-        if (this._isOpaque() != opaque) { return; }
-        this._setAttributesAndUniforms(highlighted);
-        // offset = index * 2 * 3 = index*6
-        // 2 bytes per index
-        // 3 indices per triangle
-        gl.drawElements(gl.TRIANGLES, 3, gl.UNSIGNED_SHORT, index*6);
     }
 }//end Model class
 
@@ -649,35 +662,6 @@ class Shader {
 
     }
 }
-
-// ASSIGNMENT HELPER FUNCTIONS
-
-// get the JSON file from the passed URL
-function getJSONFile(url, descr) {
-    try {
-        if ((typeof (url) !== "string") || (typeof (descr) !== "string"))
-            throw "getJSONFile: parameter not a string";
-        else {
-            var httpReq = new XMLHttpRequest(); // a new http request
-            httpReq.open("GET", url, false); // init the request
-            httpReq.send(null); // send the request
-            var startTime = Date.now();
-            while ((httpReq.status !== 200) && (httpReq.readyState !== XMLHttpRequest.DONE)) {
-                if ((Date.now() - startTime) > 3000)
-                    break;
-            } // until its loaded or we time out after three seconds
-            if ((httpReq.status !== 200) || (httpReq.readyState !== XMLHttpRequest.DONE))
-                throw "Unable to open " + descr + " file!";
-            else
-                return JSON.parse(httpReq.response);
-        } // end if good params
-    } // end try
-
-    catch (e) {
-        console.log(e);
-        return (String.null);
-    }
-} // end get input spheres
 
 /**
  * Check if value is a power of 2
@@ -770,15 +754,14 @@ async function loadModels() {
         .then(function(response) {
             return response.json();
         })
-        .then(function(inputTriangles) {
-            for (var whichSet = 0; whichSet < inputTriangles.length; whichSet++) {
-                objects.push(new Model( inputTriangles[whichSet].vertices,
-                                        inputTriangles[whichSet].normals,
-                                        inputTriangles[whichSet].uvs,
-                                        inputTriangles[whichSet].triangles,
-                                        inputTriangles[whichSet].material))
+        .then(function(rawModels) {
+            for(var i in rawModels) {
+                let model = rawModels[i];
+                objects.push(new Model(model.vertices, model.normals,
+                        model.uvs, model.triangles, model.material));
             }
         });
+
     let snakeBodyPromise = fetch(SNAKE_BODY_URL)
         .then(function(response) {
             return response.json();
@@ -793,11 +776,6 @@ async function loadModels() {
 
 // setup the webGL shaders
 function setupShaders() {
-
-    /*********************************************************/
-    /**************** Texture modulating Shader **************/
-    /*********************************************************/
-
     // shade fragments using blinn-phong and texture modulation
     var fModulateShaderCode = `#version 100
         precision mediump float;
@@ -824,7 +802,7 @@ function setupShaders() {
             vec3 H = normalize(L + V);
 
             vec4 lightingColor = vec4(ambient
-                + diffuse * max(dot(N, L), 0.0)
+                + diffuse * abs(dot(N, L))
                 + specular * pow(max(dot(H, N), 0.0), n)
             , alpha);
             vec4 textureColor = texture2D(textureSampler, textureCoord);
@@ -832,7 +810,6 @@ function setupShaders() {
         }
     `;
 
-    // define vertex shader in essl using es6 template strings
     var vModulateShaderCode = `#version 100
         uniform mat4 view;
         uniform mat4 model;
@@ -857,82 +834,15 @@ function setupShaders() {
         }
     `;
 
-    /*********************************************************/
-    /**************** Texture replacing Shader **************/
-    /*********************************************************/
-
-    // shade fragments using blinn-phong and texture replace
-    var fReplaceShaderCode = `#version 100
-        precision mediump float;
-
-        uniform vec3 ambient;
-        uniform vec3 diffuse;
-        uniform vec3 specular;
-        uniform float n;
-        uniform float alpha;
-
-        uniform vec3 eye;
-        uniform vec3 light;
-
-        uniform sampler2D textureSampler;
-
-        varying vec3 pos;
-        varying vec3 normal;
-        varying vec2 textureCoord;
-
-        void main(void) {
-            vec3 N = normalize(normal);
-            vec3 V = normalize(eye - pos);
-            vec3 L = normalize(light - pos);
-            vec3 H = normalize(L + V);
-
-            vec4 lightingColor = vec4(ambient
-                + diffuse * max(dot(N, L), 0.0)
-                + specular * pow(max(dot(H, N), 0.0), n)
-            , alpha);
-            vec4 textureColor = texture2D(textureSampler, textureCoord);
-            gl_FragColor = textureColor;
-        }
-    `;
-
-    // define vertex shader in essl using es6 template strings
-    var vReplaceShaderCode = `#version 100
-        uniform mat4 view;
-        uniform mat4 model;
-        uniform mat4 invTransModel;
-
-        attribute vec3 vertexPosition;
-        attribute vec3 vertexNormal;
-        attribute vec2 vertexTextureCoord;
-
-        varying vec3 pos;
-        varying vec3 normal;
-        varying vec2 textureCoord;
-
-        void main(void) {
-            vec4 pos4 = model * vec4(vertexPosition, 1.0);
-            vec4 normal4 = invTransModel * vec4(vertexNormal, 1.0);
-
-            gl_Position = view * pos4;
-            pos = pos4.xyz;
-            normal = normalize(normal4.xyz);
-            textureCoord = vertexTextureCoord;
-        }
-    `;
-
-    modulateShader = new Shader(fModulateShaderCode, vModulateShaderCode);
-
-    replaceShader = new Shader(fReplaceShaderCode, vReplaceShaderCode);
-
     //default shader
-    shader = modulateShader;
+    shader = new Shader(fModulateShaderCode, vModulateShaderCode);
 } // end setup shaders
 
 // render the loaded model
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
     var transform = mat4.create();
-    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.01, 100);
+    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.1, 1000);
 
     mat4.multiply(transform, transform, gameState.camera.getTransform());
 
@@ -941,9 +851,7 @@ function renderTriangles() {
     gl.uniform3fv(lightUniform, light);
 
     for(var i=0; i<objects.length; i++) {
-        for(var j=0; j<objects[i].triangles.length; j++) {
-            objects[i].draw(false, false);
-        }
+        objects[i].draw();
     }
 } // end render triangles
 
@@ -965,7 +873,9 @@ async function main() {
     while(true) {
         gameState.update();
         renderTriangles(); // draw the triangles using webGL
-        gameState.render();
+        gameState.render(false);
+        gl.clear(gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
+        gameState.render(true);
         await sleep(30);
     }
 } // end main
