@@ -56,7 +56,8 @@ class GameState {
         this.snakeUp = vec3.fromValues(0, 0, -1); //straight up
         this.lastControlInput = ControlsEnum.none;
         this.position = vec3.fromValues(0, 0, 0);
-        this.snakePieces = this.createInitialSnake(100);
+        this.snakePieces = this.createInitialSnake(20);
+        this.updateScore();
         this.apples = [];
         this.toGrow = 0;
 
@@ -147,6 +148,7 @@ class GameState {
         let popped = undefined;
         if (this.toGrow > 0) {
             this.toGrow--;
+            this.updateScore();
         } else {
             // Pop the old tail
             popped = this.snakePieces.pop();
@@ -159,6 +161,7 @@ class GameState {
         for (let i = 0; i < this.snakePieces.length; i++) {
             vec3.add(sum, this.snakePieces[i], sum);
             if(vec3.length(sum) < 0.1) {
+                document.getElementById("deathScore").innerHTML = this.snakePieces.length;
                 showMenu("deathScreen");
                 this.dead = true;
                 vec3.copy(this.position, this.lastTickValues.position); //so that camera doesn't go inside
@@ -175,7 +178,7 @@ class GameState {
             let difference = vec3.create();
             vec3.subtract(difference, this.position, this.apples[i]);
             if(vec3.length(difference) < 0.1) {
-                this.toGrow += 5;
+                this.toGrow += 20;
                 console.log("Apple eaten!");
                 this.apples.splice(i, 1);
                 this.growApple();
@@ -341,6 +344,10 @@ class GameState {
 
     rotateRight() {
         this.lastControlInput = ControlsEnum.rotateRight;
+    }
+
+    updateScore() {
+        document.getElementById("scoreText").innerHTML = "" + this.snakePieces.length;
     }
 }
 

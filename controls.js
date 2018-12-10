@@ -1,7 +1,11 @@
-const MENUS = ["mainMenu", "optionsMenu", "deathScreen"];
+const MENUS = ["mainMenu", "optionsMenu", "deathScreen", "scoreText"];
+const DEFAULT_INVERT_Y = false;
+const DEFAULT_MUSIC_ENABLED = true;
+const DEFAULT_COLOR = "57BC57";
+
 var activeMenu = "mainMenu";
 
-var invertY = false;
+var invertY = DEFAULT_INVERT_Y;
 function setInvertY(val) {
     invertY = val;
 }
@@ -9,7 +13,7 @@ function updateInvertY(elem) {
     setInvertY(elem.checked);
 }
 
-var musicEnabled = true;
+var musicEnabled = DEFAULT_MUSIC_ENABLED;
 function setMusicEnabled(val) {
     musicEnabled = val;
 }
@@ -17,9 +21,7 @@ function updateMusicEnabled(elem) {
     setMusicEnabled(elem.checked);
 }
 
-
-function updateSnakeColor(elem) {
-    let val = elem.value;
+function setColor(val) {
     let rHex = val.substr(0,2);
     let gHex = val.substr(2,2);
     let bHex = val.substr(4,2);
@@ -50,6 +52,10 @@ function updateSnakeColor(elem) {
     models["snake_body"].material.specular[2] = b * 0.2;
 }
 
+function updateSnakeColor(elem) {
+    setColor(elem.value);
+}
+
 /**
  * Show the menu with the given id
  * @param {String} id the id of the menu to show
@@ -65,6 +71,22 @@ function showMenu(id) {
 }
 
 /**
+ * Reset the menu options to defaults
+ */
+function resetOptions() {
+    // Reset invert y
+    setInvertY(DEFAULT_INVERT_Y);
+    document.getElementById("invertY").checked = invertY;
+
+    // Reset enable music
+    setMusicEnabled(DEFAULT_MUSIC_ENABLED);
+    document.getElementById("musicEnabled").checked = musicEnabled;
+
+    setColor(DEFAULT_COLOR);
+    document.getElementById("snakeColor").value = DEFAULT_COLOR;
+}
+
+/**
  * Reset the game state
  */
 function reset() {
@@ -72,6 +94,7 @@ function reset() {
         let menuElement = document.getElementById(MENUS[menuIdx]);
         menuElement.classList.add("hidden");
     }
+    showMenu("scoreText");
     gameState.reset();
 }
 
@@ -91,6 +114,7 @@ async function setup() {
     gameState = new GameState();
 
     await modelLoadPromise; // Wait for models to finish loading
+    resetOptions(); // Reset the options menu
 
     doneSettingUp = true;
 }
@@ -110,6 +134,8 @@ async function main() {
     if ( musicEnabled ) {
         document.getElementById("myAudio").play();
     }
+
+    showMenu("scoreText");
 
     gameState.reset();
 
