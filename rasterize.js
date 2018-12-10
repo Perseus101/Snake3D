@@ -82,13 +82,12 @@ class GameState {
 
     /** Main call point for updating the GameState. This function then determines which sub-updates to call for the GameState. */
     update() {
-        if(this.dead) {
-            return;
-        }
         let curTime = Date.now();
         if (curTime - this.lastSnakeTick >= 1000/this.snakeSpeed) {
-            this.lastSnakeTick = curTime;
-            this.moveForward();
+            if (!this.dead) {
+                this.lastSnakeTick = curTime;
+                this.moveForward();
+            }
         }
         this.updateCamera();
     }
@@ -142,7 +141,7 @@ class GameState {
                                                  -this.snakeDirection[1],
                                                  -this.snakeDirection[2]));
         // Pop the old tail
-        this.snakePieces.pop();
+        let popped = this.snakePieces.pop();
 
         let sum = vec3.create();
         for (let i = 0; i < this.snakePieces.length; i++) {
@@ -150,6 +149,10 @@ class GameState {
             if(vec3.length(sum) < 0.1) {
                 GameState.showMenu("deathScreen");
                 this.dead = true;
+                vec3.copy(this.position, this.lastTickValues.position); //so that camera doesn't go inside
+                this.snakePieces.shift();
+                this.snakePieces.push(popped);
+                break;
             }
         }
         // At End
@@ -161,6 +164,9 @@ class GameState {
     updateCamera() {
         let curTime = Date.now();
         let percent = (curTime - this.lastSnakeTick) * this.snakeSpeed / 1000.0;//percent of the way through the interpolation
+        if ((curTime - this.lastSnakeTick) > 1000.0 / this.snakeSpeed) {
+            percent = 1;
+        }
         GameState.interpolate(this.interpolation.snakeDirection, this.lastTickValues.snakeDirection, this.snakeDirection, percent);
         GameState.interpolate(this.interpolation.snakeUp, this.lastTickValues.snakeUp, this.snakeUp, percent);
         GameState.interpolate(this.interpolation.position, this.lastTickValues.position, this.position, percent);
