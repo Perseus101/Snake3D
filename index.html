@@ -6,45 +6,54 @@
 
         <script type="text/javascript" src="gl-matrix-min.js"></script>
         <script type="text/javascript" src="rasterize.js"></script>
+        <audio id="myAudio" controls autoplay class="hidden">
+            <source src="https://archive.org/download/LifeOnMars_934/31LifeOnMars.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+        <script>
+        var x = document.getElementById("myAudio");
+        x.loop = true;
+        x.volume = 1.0;
+        x.load();
+        </script>
         <style>
-        #myWebGLCanvas {
-            position: absolute;
-            left: 0px;
-            top: 0px;
-            z-index: 10;
-        }
+            #myWebGLCanvas {
+                position: absolute;
+                left: 0px;
+                top: 0px;
+                z-index: 10;
+            }
 
-        #myImageCanvas {
-            position: absolute;
-            left: 0px;
-            top: 0px;
-            z-index: 0;
-        }
+            #myImageCanvas {
+                position: absolute;
+                left: 0px;
+                top: 0px;
+                z-index: 0;
+            }
 
-        .hidden {
-            display: none;
-        }
+            .hidden {
+                display: none;
+            }
 
-        .menu {
-            font-family: Arial, Helvetica, sans-serif;
-            position: absolute;
-            left: 0px;
-            top: 0px;
-            width: 100%;
-            height: 100%;
-            z-index: 11;
-            text-align: center;
-        }
+            .menu {
+                font-family: Arial, Helvetica, sans-serif;
+                position: absolute;
+                left: 0px;
+                top: 0px;
+                width: 100%;
+                height: 100%;
+                z-index: 11;
+                text-align: center;
+            }
 
-        .menu > div {
-            padding-top: 20%;
-        }
+            .menu > div {
+                padding-top: 20%;
+            }
 
-        #optionsMenu table {
-            margin-left: auto;
-            margin-right: auto;
-        }
-
+            #optionsMenu table {
+                margin-left: auto;
+                margin-right: auto;
+            }
         </style>
     </head>
 
