@@ -35,10 +35,12 @@ class GameState {
     }
 
     /** Returns a set of coordinates that act as the initial snake at the start of the game */
-    static createInitialSnake(length) {
+    createInitialSnake(length) {
+        let dir = vec3.create();
+        vec3.negate(dir, this.snakeDirection);
         let snake = [];
         for (let i = 0; i < length; i++) {
-            snake.push(vec3.fromValues(0, 0, -1));
+            snake.push(dir);
         }
         return snake;
     }
@@ -49,11 +51,11 @@ class GameState {
         this.lastSnakeTick = Date.now();
         this.snakeTime = 0; //increments each time the snake moves forward
         this.snakeSpeed = 3.5; // Snake tick frequency: number of times the snake moves forward per second.
-        this.snakeDirection = vec3.fromValues(0, 0, 1); //into the screen
-        this.snakeUp = vec3.fromValues(0, 1, 0); //straight up
+        this.snakeDirection = vec3.fromValues(0, 1, 0); //into the screen
+        this.snakeUp = vec3.fromValues(0, 0, -1); //straight up
         this.lastControlInput = ControlsEnum.none;
         this.position = vec3.fromValues(0, 0, 0);
-        this.snakePieces = GameState.createInitialSnake(100);
+        this.snakePieces = this.createInitialSnake(100);
 
         this.camera = this.createInitialCamera();
         this.minimapCamera = this.createInitialCamera();
@@ -708,20 +710,6 @@ function getTextureFile(url) {
 // set up the webGL environment
 function setupWebGL() {
 
-    // Get the image canvas, render an image in it
-    var imageCanvas = document.getElementById("myImageCanvas"); // create a 2d canvas
-    var cw = imageCanvas.width = window.innerWidth,
-        ch = imageCanvas.height = window.innerHeight;
-    imageContext = imageCanvas.getContext("2d");
-    var bkgdImage = new Image();
-    bkgdImage.crossOrigin = "Anonymous";
-    bkgdImage.src = "https://ncsucgclass.github.io/prog4/sky.jpg";
-    bkgdImage.onload = function(){
-        var iw = bkgdImage.width, ih = bkgdImage.height;
-        imageContext.drawImage(bkgdImage,0,0,iw,ih,0,0,cw,ch);
-    } // end onload callback
-
-
     // Get the canvas and context
     canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
     canvas.width = window.innerWidth;
@@ -732,7 +720,7 @@ function setupWebGL() {
         if (gl == null) {
             throw "unable to create gl context -- is your browser gl ready?";
         } else {
-            gl.clearColor(0.0, 0.0, 0.0, 0.0); // transparent when we clear the frame buffer
+            gl.clearColor(0.0, 0.0, 0.0, 1.0); // transparent when we clear the frame buffer
             gl.clearDepth(1.0); // use max when we clear the depth buffer
             gl.enable(gl.DEPTH_TEST); // use hidden surface removal (with zbuffering)
             gl.enable(gl.BLEND);

@@ -41,6 +41,9 @@ function reset() {
     gameState.reset();
 }
 
+
+var doneSettingUp = false;
+
 /**
  * Setup variables and data on startup
  */
@@ -54,6 +57,8 @@ async function setup() {
     gameState = new GameState();
 
     await modelLoadPromise; // Wait for models to finish loading
+
+    doneSettingUp = true;
 }
 
 function sleep(ms) {
@@ -61,8 +66,14 @@ function sleep(ms) {
 }
 
 async function main() {
+    while (!doneSettingUp) {
+        await sleep(30);
+    }
+
     var mainMenu = document.getElementById("mainMenu");
     mainMenu.classList.add("hidden");
+
+    document.getElementById("myAudio").play();
 
     gameState.reset();
 
