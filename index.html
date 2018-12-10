@@ -5,7 +5,10 @@
         <title>Prog 5: Snake!</title>
 
         <script type="text/javascript" src="gl-matrix-min.js"></script>
+        <script type="text/javascript" src="jscolor.min.js"></script>
         <script type="text/javascript" src="rasterize.js"></script>
+        <script type="text/javascript" src="controls.js"></script>
+
         <link href="https://fonts.googleapis.com/css?family=Orbitron" rel="stylesheet">
         <audio id="myAudio" class="hidden">
             <source src="https://archive.org/download/LifeOnMars_934/31LifeOnMars.mp3" type="audio/mpeg">
@@ -98,11 +101,18 @@
                 <h1>Snake 3D Options</h1>
                 <table>
                     <tr>
-                        <td><input type="checkbox" name="invertY" value="inverted"></td>
+                        <td><input type="checkbox" name="invertY" onchange="updateInvertY(this);"/></td>
                         <td>Invert Y</td>
                     </tr>
+                    <tr>
+                        <td><input type="checkbox" name="musicEnabled" onchange="updateMusicEnabled(this);" checked /></td>
+                        <td>Music Enabled</td>
+                    </tr>
                 </table>
-                <button onclick='showMenu("mainMenu");'>Back</button>
+                <br/>
+                <label for="snakeColor">Snake Color</label>
+                <input name="snakeColor" class="jscolor" value="57BC57" onchange="updateSnakeColor(this);"/>
+                <br/><br/><button onclick='showMenu("mainMenu");'>Back</button>
             </div>
         </div>
         <div id="deathScreen" class="hidden menu" style="background-color: #0000; margin-top: 40vh; color: black;">
@@ -110,6 +120,7 @@
                 <h1>You have died.</h1>
                 <h3>Tip: Try to avoid colliding with youself.</h3>
                 <button onclick='reset();'>Restart</button>
+                <button onclick='showMenu("mainMenu");'>Menu</button>
                 <p>(Or press spacebar)</p>
             </div>
         </div>
