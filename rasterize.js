@@ -37,10 +37,12 @@ class GameState {
     }
 
     /** Returns a set of coordinates that act as the initial snake at the start of the game */
-    static createInitialSnake(length) {
+    createInitialSnake(length) {
+        let dir = vec3.create();
+        vec3.negate(dir, this.snakeDirection);
         let snake = [];
         for (let i = 0; i < length; i++) {
-            snake.push(vec3.fromValues(0, 0, -1));
+            snake.push(dir);
         }
         return snake;
     }
@@ -51,11 +53,11 @@ class GameState {
         this.lastSnakeTick = Date.now();
         this.snakeTime = 0; //increments each time the snake moves forward
         this.snakeSpeed = 3.5; // Snake tick frequency: number of times the snake moves forward per second.
-        this.snakeDirection = vec3.fromValues(0, 0, 1); //into the screen
-        this.snakeUp = vec3.fromValues(0, 1, 0); //straight up
+        this.snakeDirection = vec3.fromValues(0, 1, 0); //into the screen
+        this.snakeUp = vec3.fromValues(0, 0, -1); //straight up
         this.lastControlInput = ControlsEnum.none;
         this.position = vec3.fromValues(0, 0, 0);
-        this.snakePieces = GameState.createInitialSnake(100);
+        this.snakePieces = this.createInitialSnake(100);
 
         this.camera = this.createInitialCamera();
         this.minimapCamera = this.createInitialCamera();
@@ -901,6 +903,7 @@ function sleep(ms) {
 
 async function main() {
     var mainMenu = document.getElementById("mainMenu");
+    document.getElementById("myAudio").play();
     mainMenu.classList.add("hidden");
 
     gameState.reset();
