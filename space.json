@@ -1,6 +1,6 @@
 [{
     "material": {
-        "alpha": 0.99,
+        "alpha": 1.0,
         "ambient": [
             0.1,
             0.1,
@@ -17,7 +17,7 @@
             0.3,
             0.3
         ],
-        "texture": "space.jpg"
+        "texture": "space5.jpg"
     },
     "normals": [
         [

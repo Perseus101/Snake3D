@@ -225,7 +225,7 @@ class GameState {
             camera = this.minimapCamera;
         }
         let transform = mat4.create();
-        mat4.perspective(transform, Math.PI * 0.5, canvas.width / canvas.height, 0.1, 1000);
+        mat4.perspective(transform, Math.PI * 0.5, canvas.width / canvas.height, 0.1, 2000);
         mat4.multiply(transform, transform, camera.getTransform());
         gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
         gl.uniform3fv(eyeUniform, camera.getEye());
@@ -848,7 +848,7 @@ function setupShaders() {
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
     var transform = mat4.create();
-    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.1, 1000);
+    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.1, 2000);
 
     mat4.multiply(transform, transform, gameState.camera.getTransform());
 
