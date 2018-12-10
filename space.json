@@ -1,24 +1,24 @@
 [
     {
         "material": {
-            "alpha": 0.99,
+            "alpha": 1,
             "ambient": [
-                0.1,
-                0.1,
-                0.1
+                1.0,
+                1.0,
+                1.0
             ],
             "diffuse": [
-                0.6,
-                0.6,
-                0.6
+                0.0,
+                0.0,
+                0.0
             ],
             "n": 11,
             "specular": [
-                0.3,
-                0.3,
-                0.3
+                0.0,
+                0.0,
+                0.0
             ],
-            "texture": "space.jpg"
+            "texture": "space6.jpg"
         },
         "normals": [
             [

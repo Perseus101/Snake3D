@@ -1,67 +1,109 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="UTF-8">
-    <title>Prog 5: Snake!</title>
+    <head>
+        <meta charset="UTF-8">
+        <title>Prog 5: Snake!</title>
 
-    <script type="text/javascript" src="gl-matrix-min.js"></script>
-    <script type="text/javascript" src="rasterize.js"></script>
-    <audio id="myAudio" controls autoplay>
-      <source src="https://archive.org/download/LifeOnMars_934/31LifeOnMars.mp3" type="audio/mpeg">
-      Your browser does not support the audio element.
-    </audio><br>
-    <script>
-      var x = document.getElementById("myAudio");
-      x.loop = true;
-      x.volume = 0.08;
-      x.load();
-    </script> 
-    <style>
-    #myWebGLCanvas {
-        position: absolute;
-        left: 0px;
-        top: 0px;
-        z-index: 10;
-    }
+        <script type="text/javascript" src="gl-matrix-min.js"></script>
+        <script type="text/javascript" src="rasterize.js"></script>
+        <link href="https://fonts.googleapis.com/css?family=Orbitron" rel="stylesheet">
+        <audio id="myAudio" class="hidden">
+            <source src="https://archive.org/download/LifeOnMars_934/31LifeOnMars.mp3" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+        <script>
+        var x = document.getElementById("myAudio");
+        x.loop = true;
+        x.volume = 1.0;
+        x.load();
+        </script>
+        <style>
+            #myWebGLCanvas {
+                position: absolute;
+                left: 0px;
+                top: 0px;
+                z-index: 10;
+            }
 
-    #myImageCanvas {
-        position: absolute;
-        left: 0px;
-        top: 0px;
-        z-index: 0;
-    }
+            .hidden {
+                display: none;
+            }
 
-    .hidden {
-        display: none;
-    }
+            .menu {
+                font-family: 'Orbitron', sans-serif;
+                position: absolute;
+                left: 0px;
+                top: 0px;
+                width: 100%;
+                height: 100%;
+                z-index: 11;
+                text-align: center;
+                background-color: black;
+                color: #57bc57;
+            }
 
-    .menu {
-        font-family: Arial, Helvetica, sans-serif;
-        position: absolute;
-        left: 0px;
-        top: 0px;
-        width: 100%;
-        height: 100%;
-        z-index: 11;
-        text-align: center;
-    }
+            .title {
+              font-size: 300px;
+              margin-bottom: 0px;
+            }
 
-    .menu > div {
-      padding-top: 20%;
-    }
-    </style>
-  </head>
+            .subtitle {
+              font-size: 110px;
+              margin-top: -20px;
+              margin-bottom: 30px;
+            }
 
-  <body onload="main();" onkeydown="keydown(event);">
-    <canvas id="myImageCanvas"></canvas>
-    <canvas id="myWebGLCanvas"></canvas>
+            .menu > div {
+                padding-top: 0;
+            }
 
-    <!--------------------------------- MENUS --------------------------------->
-    <div id="deathScreen" class="hidden menu">
-      <div>
-        <h1>You have died.</h1>
-        <h3>Tip: Try to avoid colliding with youself.</h3>
-      </div>
-    </div>
-  </body>
+            #optionsMenu table {
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            button {
+                background-color: #2d2d2d;
+                color: #ccc;
+                font-size: 30px;
+                margin: 10px;
+                border-color: #2d2d2d;
+            }
+        </style>
+    </head>
+
+    <body onload="setup();" onkeydown="keydown(event);">
+        <canvas id="myImageCanvas"></canvas>
+        <canvas id="myWebGLCanvas"></canvas>
+
+        <!--------------------------------- MENUS --------------------------------->
+        <div id="mainMenu" class="menu">
+            <div>
+                <h1 class="title">SNAKE</h1>
+                <h1 class="subtitle">3D</h1>
+                <button onclick="main();">Start</button>
+                <button onclick='showMenu("optionsMenu");'>Options</button>
+            </div>
+        </div>
+        <div id="optionsMenu" class="menu hidden" style="padding-top: 20%;">
+            <div>
+                <h1>Snake 3D Options</h1>
+                <table>
+                    <tr>
+                        <td><input type="checkbox" name="invertY" value="inverted"></td>
+                        <td>Invert Y</td>
+                    </tr>
+                </table>
+                <button onclick='showMenu("mainMenu");'>Back</button>
+            </div>
+        </div>
+        <div id="deathScreen" class="hidden menu" style="background-color: #0000; margin-top: 20%; color: black;">
+            <div>
+                <h1>You have died.</h1>
+                <h3>Tip: Try to avoid colliding with youself.</h3>
+                <button onclick='reset();'>Restart</button>
+                <p>(Or press spacebar)</p>
+            </div>
+        </div>
+    </body>
 </html>

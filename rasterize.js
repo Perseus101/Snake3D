@@ -2,9 +2,10 @@
 const SKYBOX_URL = "space.json"; // skybox file loc
 const APPLE_URL = "gameApple.json"; // apple file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
-
+const MENUS = ["mainMenu", "optionsMenu", "deathScreen"];
 var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
 var shader = null;
+var activeMenu = "mainMenu";
 
 /* webgl globals */
 var canvas;
@@ -33,16 +34,31 @@ var ControlsEnum = Object.freeze({ "up": 1, "down": 2, "left": 3, "right": 4, "r
 /** GameState class */
 class GameState {
     constructor() {
+        this.reset();
+    }
+
+    /** Returns a set of coordinates that act as the initial snake at the start of the game */
+    createInitialSnake(length) {
+        let dir = vec3.create();
+        vec3.negate(dir, this.snakeDirection);
+        let snake = [];
+        for (let i = 0; i < length; i++) {
+            snake.push(dir);
+        }
+        return snake;
+    }
+
+    reset() {
         this.dead = false;
 
         this.lastSnakeTick = Date.now();
         this.snakeTime = 0; //increments each time the snake moves forward
         this.snakeSpeed = 3.5; // Snake tick frequency: number of times the snake moves forward per second.
-        this.snakeDirection = vec3.fromValues(0, 0, 1); //into the screen
-        this.snakeUp = vec3.fromValues(0, 1, 0); //straight up
+        this.snakeDirection = vec3.fromValues(0, 1, 0); //into the screen
+        this.snakeUp = vec3.fromValues(0, 0, -1); //straight up
         this.lastControlInput = ControlsEnum.none;
         this.position = vec3.fromValues(0, 0, 0);
-        this.snakePieces = GameState.createInitialSnake(100);
+        this.snakePieces = this.createInitialSnake(100);
         this.apples = [];
 
         this.camera = this.createInitialCamera();
@@ -61,24 +77,6 @@ class GameState {
         this.growApple();
     }
 
-    /**
-     * Show the menu with the given id
-     * @param {String} id the id of the menu to show
-     */
-    static showMenu(id) {
-        let menu = document.getElementById(id);
-        menu.classList.remove("hidden");
-    }
-
-    /** Returns a set of coordinates that act as the initial snake at the start of the game */
-    static createInitialSnake(length) {
-        let snake = [];
-        for (let i = 0; i < length; i++) {
-            snake.push(vec3.fromValues(0, 0, -1));
-        }
-        return snake;
-    }
-
     /** Returns an initial camera. Uses `this.snakePieces` to determine where the initial camera should be */
     createInitialCamera() {
         return new Camera(vec3.clone(this.position), vec3.clone(this.snakeDirection), vec3.clone(this.snakeUp));
@@ -86,13 +84,12 @@ class GameState {
 
     /** Main call point for updating the GameState. This function then determines which sub-updates to call for the GameState. */
     update() {
-        if(this.dead) {
-            return;
-        }
         let curTime = Date.now();
         if (curTime - this.lastSnakeTick >= 1000/this.snakeSpeed) {
-            this.lastSnakeTick = curTime;
-            this.moveForward();
+            if (!this.dead) {
+                this.lastSnakeTick = curTime;
+                this.moveForward();
+            }
         }
         this.updateCamera();
     }
@@ -146,15 +143,19 @@ class GameState {
                                                  -this.snakeDirection[1],
                                                  -this.snakeDirection[2]));
         // Pop the old tail
-        this.snakePieces.pop();
+        let popped = this.snakePieces.pop();
 
         // Detect collision with itself
         let sum = vec3.create();
         for (let i = 0; i < this.snakePieces.length; i++) {
             vec3.add(sum, this.snakePieces[i], sum);
             if(vec3.length(sum) < 0.1) {
-                GameState.showMenu("deathScreen");
+                showMenu("deathScreen");
                 this.dead = true;
+                vec3.copy(this.position, this.lastTickValues.position); //so that camera doesn't go inside
+                this.snakePieces.shift();
+                this.snakePieces.push(popped);
+                break;
             }
         }
 
@@ -196,6 +197,9 @@ class GameState {
     updateCamera() {
         let curTime = Date.now();
         let percent = (curTime - this.lastSnakeTick) * this.snakeSpeed / 1000.0;//percent of the way through the interpolation
+        if ((curTime - this.lastSnakeTick) > 1000.0 / this.snakeSpeed) {
+            percent = 1;
+        }
         GameState.interpolate(this.interpolation.snakeDirection, this.lastTickValues.snakeDirection, this.snakeDirection, percent);
         GameState.interpolate(this.interpolation.snakeUp, this.lastTickValues.snakeUp, this.snakeUp, percent);
         GameState.interpolate(this.interpolation.position, this.lastTickValues.position, this.position, percent);
@@ -256,7 +260,7 @@ class GameState {
             camera = this.minimapCamera;
         }
         let transform = mat4.create();
-        mat4.perspective(transform, Math.PI * 0.5, canvas.width / canvas.height, 0.1, 1000);
+        mat4.perspective(transform, Math.PI * 0.5, canvas.width / canvas.height, 0.1, 2000);
         mat4.multiply(transform, transform, camera.getTransform());
         gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
         gl.uniform3fv(eyeUniform, camera.getEye());
@@ -758,20 +762,6 @@ function getTextureFile(url) {
 // set up the webGL environment
 function setupWebGL() {
 
-    // Get the image canvas, render an image in it
-    var imageCanvas = document.getElementById("myImageCanvas"); // create a 2d canvas
-    var cw = imageCanvas.width = window.innerWidth,
-        ch = imageCanvas.height = window.innerHeight;
-    imageContext = imageCanvas.getContext("2d");
-    var bkgdImage = new Image();
-    bkgdImage.crossOrigin = "Anonymous";
-    bkgdImage.src = "https://ncsucgclass.github.io/prog4/sky.jpg";
-    bkgdImage.onload = function(){
-        var iw = bkgdImage.width, ih = bkgdImage.height;
-        imageContext.drawImage(bkgdImage,0,0,iw,ih,0,0,cw,ch);
-    } // end onload callback
-
-
     // Get the canvas and context
     canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
     canvas.width = window.innerWidth;
@@ -782,7 +772,7 @@ function setupWebGL() {
         if (gl == null) {
             throw "unable to create gl context -- is your browser gl ready?";
         } else {
-            gl.clearColor(0.0, 0.0, 0.0, 0.0); // transparent when we clear the frame buffer
+            gl.clearColor(0.0, 0.0, 0.0, 1.0); // transparent when we clear the frame buffer
             gl.clearDepth(1.0); // use max when we clear the depth buffer
             gl.enable(gl.DEPTH_TEST); // use hidden surface removal (with zbuffering)
             gl.enable(gl.BLEND);
@@ -898,11 +888,52 @@ function setupShaders() {
     shader = new Shader(fModulateShaderCode, vModulateShaderCode);
 } // end setup shaders
 
+/**
+ * Show the menu with the given id
+ * @param {String} id the id of the menu to show
+ */
+function showMenu(id) {
+    for(var menuIdx in MENUS) {
+        let menuElement = document.getElementById(MENUS[menuIdx]);
+        menuElement.classList.add("hidden");
+    }
+    let menu = document.getElementById(id);
+    menu.classList.remove("hidden");
+    activeMenu = id;
+}
+
+function reset() {
+    for(var menuIdx in MENUS) {
+        let menuElement = document.getElementById(MENUS[menuIdx]);
+        menuElement.classList.add("hidden");
+    }
+    gameState.reset();
+}
+
+var doneSettingUp = false;
+
+/**
+ * Setup variables and data on startup
+ */
+async function setup() {
+    let modelLoadPromise = loadModels(); // Start loading models
+    setupWebGL(); // set up the webGL environment
+
+    setupShaders(); // setup the webGL shaders
+    shader.activate();
+
+    gameState = new GameState();
+
+    await modelLoadPromise; // Wait for models to finish loading
+
+    doneSettingUp = true;
+}
+
 // render the loaded model
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
     var transform = mat4.create();
-    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.1, 1000);
+    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.1, 2000);
 
     mat4.multiply(transform, transform, gameState.camera.getTransform());
 
@@ -921,14 +952,15 @@ function sleep(ms) {
 }
 
 async function main() {
-    setupWebGL(); // set up the webGL environment
-    await loadModels(); // load in the triangles from tri file
-    //loadEllipsoids(); // load in the ellipsoids from  file
+    while (!doneSettingUp) {
+        await sleep(30);
+    }
 
-    setupShaders(); // setup the webGL shaders
-    shader.activate();
+    var mainMenu = document.getElementById("mainMenu");
+    document.getElementById("myAudio").play();
+    mainMenu.classList.add("hidden");
 
-    gameState = new GameState();
+    gameState.reset();
 
     while(true) {
         gameState.update();
@@ -966,6 +998,12 @@ function keydown(event) {
             break;
         case 'E':
             gameState.rotateRight();
+            break;
+
+        case ' ':
+            if(activeMenu === MENUS[2]) {
+                reset();
+            }
             break;
 
         default:
