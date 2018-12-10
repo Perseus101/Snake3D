@@ -4,6 +4,7 @@ const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 const MENUS = ["mainMenu", "optionsMenu", "deathScreen"];
 var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
 var shader = null;
+var activeMenu = "mainMenu";
 
 /* webgl globals */
 var canvas;
@@ -850,6 +851,7 @@ function showMenu(id) {
     }
     let menu = document.getElementById(id);
     menu.classList.remove("hidden");
+    activeMenu = id;
 }
 
 function reset() {
@@ -939,6 +941,12 @@ function keydown(event) {
             break;
         case 'E':
             gameState.rotateRight();
+            break;
+
+        case ' ':
+            if(activeMenu === MENUS[2]) {
+                reset();
+            }
             break;
 
         default:
