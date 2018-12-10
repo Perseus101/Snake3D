@@ -56,10 +56,10 @@ class GameState {
         this.snakeUp = vec3.fromValues(0, 0, -1); //straight up
         this.lastControlInput = ControlsEnum.none;
         this.position = vec3.fromValues(0, 0, 0);
-        this.snakePieces = this.createInitialSnake(20);
+        this.snakePieces = this.createInitialSnake(0);
         this.updateScore();
         this.apples = [];
-        this.toGrow = 0;
+        this.toGrow = 20;
 
         this.camera = this.createInitialCamera();
         this.minimapCamera = this.createInitialCamera();
