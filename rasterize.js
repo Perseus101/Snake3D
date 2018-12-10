@@ -19,6 +19,7 @@ var highlightedModel = -1;
 var canvas;
 var gl = null; // the all powerful gl object. It's all here folks!
 var objects = [];
+var models = {};
 var vertexPositionAttrib; // where to put position for vertex shader
 var vertexNormalAttrib; // where to put normals for vertex shader
 var textureCoordinateAttrib; // where to put texture coordinates for vertex shader
@@ -47,7 +48,8 @@ class GameState {
         this.snakeDirection = vec3.fromValues(0, 0, 1); //into the screen
         this.snakeUp = vec3.fromValues(0, 1, 0); //straight up
         this.lastControlInput = ControlsEnum.none;
-        this.snakePieces = GameState.createInitialSnake(10);
+        this.position = vec3.fromValues(0, 0, 0);
+        this.snakePieces = GameState.createInitialSnake(100);
         this.camera = this.createInitialCamera();
     }
 
@@ -55,14 +57,14 @@ class GameState {
     static createInitialSnake(length) {
         let snake = [];
         for (let i = 0; i < length; i++) {
-            snake.push(vec3.fromValues(0, 0, -i));
+            snake.push(vec3.fromValues(0, 0, -1));
         }
         return snake;
     }
 
     /** Returns an initial camera. Uses `this.snakePieces` to determine where the initial camera should be */
     createInitialCamera() {
-        return new Camera(vec3.fromValues(0, 0, 0), vec3.clone(this.snakeDirection), vec3.clone(this.snakeUp));
+        return new Camera(this.position, vec3.clone(this.snakeDirection), vec3.clone(this.snakeUp));
     }
 
     /** Main call point for updating the GameState. This function then determines which sub-updates to call for the GameState. */
@@ -112,10 +114,10 @@ class GameState {
                 break;
         }
 
+        vec3.add(this.position, this.position, this.snakeDirection);
+
         // For temporary debugging
-        let moveAmt = vec3.create();
-        vec3.scale(moveAmt, this.snakeDirection, 0.01);
-        vec3.add(this.camera.eye, this.camera.eye, moveAmt);
+        vec3.copy(this.camera.eye, this.position);
         vec3.add(this.camera.center, this.camera.eye, this.snakeDirection);
         vec3.copy(this.camera.up, this.snakeUp);
         mat4.lookAt(this.camera.transform, this.camera.eye, this.camera.center, this.camera.up);
@@ -132,21 +134,29 @@ class GameState {
     }
 
     /**
-     * Gets the orientation for a snake piece at coordinate `b`.
-     * The snake pieces before and after it exist at coordinates `a` and `c` respectively.
-     * Should return an identifier for the model that should be used to draw the snake at `b`,
-     * and an appropriate rotationMatrix to orient it correctly.
-     * `a` and `c` may be undefined, which denotes that this is a cap piece.
+     *
+     * @param {vec3} a the vector representing the section before the current section
+     * @param {vec3} b the vector representing the current section
+     * @param {vec3} c the vector representing the section after the current section
      */
     getPieceAndOrientation(a, b, c) {
-
+        return [models["snake_body"], mat4.create()];
     }
 
     /** Draws the current game state */
     render() {
+        let translationMatrix = mat4.create();
+        mat4.fromTranslation(translationMatrix, this.position);
         for (let i = 0; i < this.snakePieces.length; i++) {
-            // The lack of bounds checking here and the potential for getting `undefined`s is intentional. `getPieceAndOrientation` should handle `undefined`s.
-            let pieceAndOrientation = this.getPieceAndOrientation(this.snakePieces[i - 1], this.snakePieces[i], this.snakePieces[i + 1]);
+            // Translate the segment
+            let segmentTranslationMatrix = mat4.create();
+            mat4.fromTranslation(segmentTranslationMatrix, this.snakePieces[i]);
+            mat4.multiply(translationMatrix, segmentTranslationMatrix, translationMatrix);
+
+            let [model, rotationMatrix] = this.getPieceAndOrientation(this.snakePieces[i - 1], this.snakePieces[i], this.snakePieces[i + 1]);
+            model.modelMatrix = translationMatrix;
+            model.modelRotationMatrix = rotationMatrix;
+            model.draw(false, false);
         }
     }
 
@@ -716,7 +726,7 @@ function setupWebGL() {
 /**
  * Load models
  */
-function loadModels() {
+async function loadModels() {
     fetch(INPUT_TRIANGLES_URL)
         .then(function(response) {
             return response.json();
@@ -730,14 +740,16 @@ function loadModels() {
                                         inputTriangles[whichSet].material))
             }
         });
-    fetch(SNAKE_BODY_URL)
+    let snakeBodyPromise = fetch(SNAKE_BODY_URL)
         .then(function(response) {
             return response.json();
         })
         .then(function(model) {
-            new Model(model.vertices, model.normals, model.uvs, model.triangles, model.material);
+            return new Model(model.vertices, model.normals, model.uvs,
+                            model.triangles, model.material);
         });
 
+    models["snake_body"] = await snakeBodyPromise;
 } // end load models
 
 // setup the webGL shaders
@@ -881,7 +893,7 @@ function setupShaders() {
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
     var transform = mat4.create();
-    mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.01, 100);
+    mat4.perspective(transform, Math.PI*0.75, canvas.width/canvas.height, 0.01, 100);
 
     mat4.multiply(transform, transform, gameState.camera.getTransform());
 
@@ -889,25 +901,9 @@ function renderTriangles() {
     gl.uniform3fv(eyeUniform, gameState.camera.getEye());
     gl.uniform3fv(lightUniform, light);
 
-    // Create a copy of the objects array and sort it into the correct render order
-    var sortedObjects = objects.slice(0);
-    sortedObjects.sort(function(a, b) {
-        var dist1 = vec3.distance(gameState.camera.getEye(), a.getCenter());
-        var dist2 = vec3.distance(gameState.camera.getEye(), b.getCenter());
-        return dist2 - dist1;
-    });
-    gl.depthMask(true);
-    for(var i=0; i<sortedObjects.length; i++) {
-        var highlighted = (sortedObjects[i]===objects[highlightedModel]);
-        for(var j=0; j<sortedObjects[i].triangles.length; j++) {
-            sortedObjects[i].drawTriangle(highlighted, j, true);
-        }
-    }
-    gl.depthMask(false);
-    for(var i=0; i<sortedObjects.length; i++) {
-        var highlighted = (sortedObjects[i]===objects[highlightedModel]);
-        for(var j=0; j<sortedObjects[i].triangles.length; j++) {
-            sortedObjects[i].drawTriangle(highlighted, j, false);
+    for(var i=0; i<objects.length; i++) {
+        for(var j=0; j<objects[i].triangles.length; j++) {
+            objects[i].draw(false, false);
         }
     }
 } // end render triangles
@@ -919,7 +915,7 @@ function sleep(ms) {
 
 async function main() {
     setupWebGL(); // set up the webGL environment
-    loadModels(); // load in the triangles from tri file
+    await loadModels(); // load in the triangles from tri file
     //loadEllipsoids(); // load in the ellipsoids from  file
 
     setupShaders(); // setup the webGL shaders
@@ -930,6 +926,7 @@ async function main() {
     while(true) {
         gameState.update();
         renderTriangles(); // draw the triangles using webGL
+        gameState.render();
         await sleep(30);
     }
 } // end main
