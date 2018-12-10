@@ -32,6 +32,8 @@ var ControlsEnum = Object.freeze({ "up": 1, "down": 2, "left": 3, "right": 4, "r
 /** GameState class */
 class GameState {
     constructor() {
+        this.dead = false;
+
         this.lastSnakeTick = Date.now();
         this.snakeTime = 0; //increments each time the snake moves forward
         this.snakeSpeed = 3.5; // Snake tick frequency: number of times the snake moves forward per second.
@@ -54,6 +56,15 @@ class GameState {
         }
     }
 
+    /**
+     * Show the menu with the given id
+     * @param {String} id the id of the menu to show
+     */
+    static showMenu(id) {
+        let menu = document.getElementById(id);
+        menu.classList.remove("hidden");
+    }
+
     /** Returns a set of coordinates that act as the initial snake at the start of the game */
     static createInitialSnake(length) {
         let snake = [];
@@ -70,6 +81,9 @@ class GameState {
 
     /** Main call point for updating the GameState. This function then determines which sub-updates to call for the GameState. */
     update() {
+        if(this.dead) {
+            return;
+        }
         let curTime = Date.now();
         if (curTime - this.lastSnakeTick >= 1000/this.snakeSpeed) {
             this.lastSnakeTick = curTime;
@@ -129,6 +143,14 @@ class GameState {
         // Pop the old tail
         this.snakePieces.pop();
 
+        let sum = vec3.create();
+        for (let i = 0; i < this.snakePieces.length; i++) {
+            vec3.add(sum, this.snakePieces[i], sum);
+            if(vec3.length(sum) < 0.1) {
+                GameState.showMenu("deathScreen");
+                this.dead = true;
+            }
+        }
         // At End
         this.lastControlInput = ControlsEnum.none; //input has been processed, clear it
         this.snakeTime++;
