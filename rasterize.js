@@ -57,7 +57,7 @@ class GameState {
         this.snakeSpeed = 3.5; // Snake tick frequency: number of times the snake moves forward per second.
         this.snakeDirection = vec3.fromValues(0, 1, 0); //into the screen
         this.snakeUp = vec3.fromValues(0, 0, -1); //straight up
-        this.lastControlInput = ControlsEnum.none;
+        this.controlInputQueue = [];
         this.position = vec3.fromValues(0, 0, 0);
         this.snakePieces = this.createInitialSnake(0);
         this.updateScore();
@@ -108,7 +108,7 @@ class GameState {
 
         let snakeLeft = vec3.create(); vec3.cross(snakeLeft, this.snakeUp, this.snakeDirection); // we are in a weird left handed coordinate system
 
-        switch (this.lastControlInput) {
+        switch (this.controlInputQueue.shift()) {
             case ControlsEnum.left:
                 this.snakeDirection = snakeLeft;
                 break;
@@ -191,7 +191,6 @@ class GameState {
         }
 
         // At End
-        this.lastControlInput = ControlsEnum.none; //input has been processed, clear it
         this.snakeTime++;
     }
 
@@ -327,27 +326,33 @@ class GameState {
 
     // CONTROLS
     turnLeft() {
-        this.lastControlInput = ControlsEnum.left;
+        this.pushInput(ControlsEnum.left);
     }
 
     turnRight() {
-        this.lastControlInput = ControlsEnum.right;
+        this.pushInput(ControlsEnum.right);
     }
 
     turnUp() {
-        this.lastControlInput = ControlsEnum.up;
+        this.pushInput(ControlsEnum.up);
     }
 
     turnDown() {
-        this.lastControlInput = ControlsEnum.down;
+        this.pushInput(ControlsEnum.down);
     }
 
     rotateLeft() {
-        this.lastControlInput = ControlsEnum.rotateLeft
+        this.pushInput(ControlsEnum.rotateLeft);
     }
 
     rotateRight() {
-        this.lastControlInput = ControlsEnum.rotateRight;
+        this.pushInput(ControlsEnum.rotateRight);
+    }
+
+    pushInput(input) {
+        if (this.controlInputQueue.length < 2) {
+            this.controlInputQueue.push(input);
+        }
     }
 
     updateScore() {
