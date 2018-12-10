@@ -241,13 +241,7 @@ class GameState {
         mat4.lookAt(this.camera.transform, this.camera.eye, this.camera.center, this.camera.up);
 
         let interpLeft = vec3.create(); vec3.cross(interpLeft, this.interpolation.snakeUp, this.interpolation.snakeDirection);
-        let upOff = vec3.create(); vec3.scale(upOff, this.interpolation.snakeUp, -50);
-        let rightOff = vec3.create(); vec3.scale(rightOff, interpLeft, 100);
-        let backOff = vec3.create(); vec3.scale(backOff, this.interpolation.snakeDirection, -80);
-
-        let offset = vec3.create();
-        vec3.add(offset, upOff, rightOff);
-        vec3.add(offset, offset, backOff);
+        let offset = vec3.create(); vec3.scale(offset, this.interpolation.snakeDirection, -80);
 
         vec3.copy(this.minimapCamera.eye, this.interpolation.position);
         vec3.add(this.minimapCamera.eye, this.minimapCamera.eye, offset);
@@ -291,6 +285,12 @@ class GameState {
         let transform = mat4.create();
         mat4.perspective(transform, Math.PI * 0.5, canvas.width / canvas.height, 0.1, 2000);
         mat4.multiply(transform, transform, camera.getTransform());
+
+        if (miniMapMode) {
+            let translate = mat4.create(); mat4.fromTranslation(translate, vec3.fromValues(0.8, 0.7, 0));
+            mat4.multiply(transform, translate, transform);
+        }
+
         gl.uniformMatrix4fv(viewMatrixUniform, false, transform);
         gl.uniform3fv(eyeUniform, camera.getEye());
 
