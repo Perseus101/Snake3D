@@ -16,6 +16,40 @@ function setMusicEnabled(val) {
 function updateMusicEnabled(elem) {
     setMusicEnabled(elem.checked);
 }
+
+
+function updateSnakeColor(elem) {
+    let val = elem.value;
+    let rHex = val.substr(0,2);
+    let gHex = val.substr(2,2);
+    let bHex = val.substr(4,2);
+
+    let r = parseInt(rHex, 16) / 255;
+    let g = parseInt(gHex, 16) / 255;
+    let b = parseInt(bHex, 16) / 255;
+
+    for(var menuIdx in MENUS) {
+        if(menuIdx == 2) {
+            // Skip the death menu, since it will be against the snake body
+            continue;
+        }
+        let menuElement = document.getElementById(MENUS[menuIdx]);
+        menuElement.style.color = "#" + val;
+    }
+
+    models["snake_body"].material.ambient[0] = r * 0.2;
+    models["snake_body"].material.ambient[1] = g * 0.2;
+    models["snake_body"].material.ambient[2] = b * 0.2;
+
+    models["snake_body"].material.diffuse[0] = r * 0.6;
+    models["snake_body"].material.diffuse[1] = g * 0.6;
+    models["snake_body"].material.diffuse[2] = b * 0.6;
+
+    models["snake_body"].material.specular[0] = r * 0.2;
+    models["snake_body"].material.specular[1] = g * 0.2;
+    models["snake_body"].material.specular[2] = b * 0.2;
+}
+
 /**
  * Show the menu with the given id
  * @param {String} id the id of the menu to show
@@ -73,7 +107,9 @@ async function main() {
     var mainMenu = document.getElementById("mainMenu");
     mainMenu.classList.add("hidden");
 
-    document.getElementById("myAudio").play();
+    if ( musicEnabled ) {
+        document.getElementById("myAudio").play();
+    }
 
     gameState.reset();
 
