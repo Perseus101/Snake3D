@@ -72,6 +72,7 @@ function reset() {
         let menuElement = document.getElementById(MENUS[menuIdx]);
         menuElement.classList.add("hidden");
     }
+    showMenu("scoreText");
     gameState.reset();
 }
 
