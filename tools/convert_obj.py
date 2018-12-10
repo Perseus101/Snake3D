@@ -88,4 +88,4 @@ if __name__ == "__main__":
     data = parse_obj(args.file)
 
     with open(args.output, "w") as f:
-        json.dump([data], f, sort_keys=True, indent=4, separators=(',', ': '))
+        json.dump(data, f, sort_keys=True, indent=4, separators=(',', ': '))

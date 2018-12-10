@@ -1,6 +1,6 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
 const SKYBOX_URL = "space.json"; // skybox file loc
-const APPLE_URL = "gameApple.json"; // apple file loc
+const APPLE_URL = "apple.json"; // apple file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
 var shader = null;
@@ -28,6 +28,9 @@ var modelInvTransMatrixUniform; // where to put the inverse transpose of the mod
 
 var gameState = undefined;
 var ControlsEnum = Object.freeze({ "up": 1, "down": 2, "left": 3, "right": 4, "rotateLeft": 5, "rotateRight": 6, "none": 7});
+
+var deathAudio = new Audio('sadtrombone.mp3');
+var appleAudio = new Audio('apple.mp3');
 
 /** GameState class */
 class GameState {
@@ -162,6 +165,7 @@ class GameState {
             vec3.add(sum, this.snakePieces[i], sum);
             if(vec3.length(sum) < 0.1) {
                 document.getElementById("deathScore").innerHTML = this.snakePieces.length;
+                deathAudio.play();
                 showMenu("deathScreen");
                 this.dead = true;
                 vec3.copy(this.position, this.lastTickValues.position); //so that camera doesn't go inside
@@ -178,6 +182,7 @@ class GameState {
             let difference = vec3.create();
             vec3.subtract(difference, this.position, this.apples[i]);
             if(vec3.length(difference) < 0.1) {
+                appleAudio.play();
                 this.toGrow += 20;
                 console.log("Apple eaten!");
                 this.apples.splice(i, 1);
@@ -192,10 +197,22 @@ class GameState {
 
     /** Grows a new apple somewhere on the play field that doesn't collide with the snake */
     growApple() {
-        this.apples.push(this.getRandomPosition());
-        // TODO: check to see if this location is within the snake already
+        let applePos = this.getRandomPosition();
+
+        let sum = vec3.clone(this.position);
+        let difference = vec3.create();
+        for (let i = 0; i < this.snakePieces.length; i++) {
+            vec3.add(sum, this.snakePieces[i], sum);
+            vec3.subtract(difference, sum, applePos);
+            if(vec3.length(difference) < 0.1) {
+                this.growApple();
+                return;
+            }
+        }
+
+        this.apples.push(applePos);
     }
-    
+
     /** Returns a random valid position within the playing field */
     getRandomPosition() {
         let max = 10;
@@ -827,7 +844,7 @@ async function loadModels() {
             return new Model(model.vertices, model.normals,
                 model.uvs, model.triangles, model.material);
         });
-    
+
     let snakeBodyPromise = fetch(SNAKE_BODY_URL)
         .then(function(response) {
             return response.json();
