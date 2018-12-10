@@ -1,6 +1,6 @@
 {
     "material": {
-        "alpha": 0.99,
+        "alpha": 1,
         "ambient": [
             0.1,
             0.1,

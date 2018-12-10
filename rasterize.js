@@ -1,19 +1,9 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
-
-/* assignment specific globals */
-const WIN_Z = 0;  // default graphics window z coord in world space
-const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in world space
-const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
 const INPUT_TRIANGLES_URL = "triangles.json"; // triangles file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 
 var light = new vec3.fromValues(-3.0, 1.0, -0.5); // default light position in world space
-
-var modulateShader = null;
-var replaceShader = null;
 var shader = null;
-
-var highlightedModel = -1;
 
 /* webgl globals */
 var canvas;
@@ -191,7 +181,7 @@ class GameState {
             model.modelMatrix = translationMatrix;
             model.modelRotationMatrix = rotationMatrix;
             if (i > 0) {
-                model.draw(false, false);
+                model.draw();
             }
         }
     }
@@ -491,25 +481,11 @@ class Model {
     }
 
     /**
-     * Is this model opaque?
-     *
-     * Test if the material alpha ~= 1.0
-     */
-    _isOpaque() {
-        return Math.abs(this.material.alpha - 1.0) < 0.001
-    }
-    /**
      * Set the webgl attributes and uniforms for this model
-     * @param {bool} highlighted
      */
-    _setAttributesAndUniforms(highlighted) {
+    _setAttributesAndUniforms() {
         var tempModelMatrix = mat4.create();
         mat4.multiply(tempModelMatrix, this.locationMatrix, tempModelMatrix);
-        if(highlighted) {
-            var scale = mat4.create();
-            mat4.fromScaling(scale, vec3.fromValues(1.2, 1.2, 1.2));
-            mat4.multiply(tempModelMatrix, scale, tempModelMatrix);
-        }
         mat4.multiply(tempModelMatrix, this.modelScaleMatrix, tempModelMatrix);
         mat4.multiply(tempModelMatrix, this.modelRotationMatrix, tempModelMatrix);
         mat4.multiply(tempModelMatrix, this.modelMatrix, tempModelMatrix);
@@ -551,28 +527,10 @@ class Model {
 
     /**
      * Draw the model
-     * @param {bool} highlighted is this model highlighted
-     * @param {bool} opaque is the draw phase opaque
      */
-    draw(highlighted, opaque) {
-        if (this._isOpaque() != opaque) { return; }
-        this._setAttributesAndUniforms(highlighted);
+    draw() {
+        this._setAttributesAndUniforms();
         gl.drawElements(gl.TRIANGLES, this.triBufferSize, gl.UNSIGNED_SHORT, 0);
-    }
-
-    /**
-     * Draw the triangle at index in the model
-     * @param {bool} highlighted is this model highlighted
-     * @param {int} index index of the triangle to draw
-     * @param {bool} opaque is the draw phase opaque
-     */
-    drawTriangle(highlighted, index, opaque) {
-        if (this._isOpaque() != opaque) { return; }
-        this._setAttributesAndUniforms(highlighted);
-        // offset = index * 2 * 3 = index*6
-        // 2 bytes per index
-        // 3 indices per triangle
-        gl.drawElements(gl.TRIANGLES, 3, gl.UNSIGNED_SHORT, index*6);
     }
 }//end Model class
 
@@ -649,35 +607,6 @@ class Shader {
 
     }
 }
-
-// ASSIGNMENT HELPER FUNCTIONS
-
-// get the JSON file from the passed URL
-function getJSONFile(url, descr) {
-    try {
-        if ((typeof (url) !== "string") || (typeof (descr) !== "string"))
-            throw "getJSONFile: parameter not a string";
-        else {
-            var httpReq = new XMLHttpRequest(); // a new http request
-            httpReq.open("GET", url, false); // init the request
-            httpReq.send(null); // send the request
-            var startTime = Date.now();
-            while ((httpReq.status !== 200) && (httpReq.readyState !== XMLHttpRequest.DONE)) {
-                if ((Date.now() - startTime) > 3000)
-                    break;
-            } // until its loaded or we time out after three seconds
-            if ((httpReq.status !== 200) || (httpReq.readyState !== XMLHttpRequest.DONE))
-                throw "Unable to open " + descr + " file!";
-            else
-                return JSON.parse(httpReq.response);
-        } // end if good params
-    } // end try
-
-    catch (e) {
-        console.log(e);
-        return (String.null);
-    }
-} // end get input spheres
 
 /**
  * Check if value is a power of 2
@@ -770,15 +699,14 @@ async function loadModels() {
         .then(function(response) {
             return response.json();
         })
-        .then(function(inputTriangles) {
-            for (var whichSet = 0; whichSet < inputTriangles.length; whichSet++) {
-                objects.push(new Model( inputTriangles[whichSet].vertices,
-                                        inputTriangles[whichSet].normals,
-                                        inputTriangles[whichSet].uvs,
-                                        inputTriangles[whichSet].triangles,
-                                        inputTriangles[whichSet].material))
+        .then(function(rawModels) {
+            for(var i in rawModels) {
+                let model = rawModels[i];
+                objects.push(new Model(model.vertices, model.normals,
+                        model.uvs, model.triangles, model.material));
             }
         });
+
     let snakeBodyPromise = fetch(SNAKE_BODY_URL)
         .then(function(response) {
             return response.json();
@@ -793,11 +721,6 @@ async function loadModels() {
 
 // setup the webGL shaders
 function setupShaders() {
-
-    /*********************************************************/
-    /**************** Texture modulating Shader **************/
-    /*********************************************************/
-
     // shade fragments using blinn-phong and texture modulation
     var fModulateShaderCode = `#version 100
         precision mediump float;
@@ -832,7 +755,6 @@ function setupShaders() {
         }
     `;
 
-    // define vertex shader in essl using es6 template strings
     var vModulateShaderCode = `#version 100
         uniform mat4 view;
         uniform mat4 model;
@@ -857,75 +779,8 @@ function setupShaders() {
         }
     `;
 
-    /*********************************************************/
-    /**************** Texture replacing Shader **************/
-    /*********************************************************/
-
-    // shade fragments using blinn-phong and texture replace
-    var fReplaceShaderCode = `#version 100
-        precision mediump float;
-
-        uniform vec3 ambient;
-        uniform vec3 diffuse;
-        uniform vec3 specular;
-        uniform float n;
-        uniform float alpha;
-
-        uniform vec3 eye;
-        uniform vec3 light;
-
-        uniform sampler2D textureSampler;
-
-        varying vec3 pos;
-        varying vec3 normal;
-        varying vec2 textureCoord;
-
-        void main(void) {
-            vec3 N = normalize(normal);
-            vec3 V = normalize(eye - pos);
-            vec3 L = normalize(light - pos);
-            vec3 H = normalize(L + V);
-
-            vec4 lightingColor = vec4(ambient
-                + diffuse * max(dot(N, L), 0.0)
-                + specular * pow(max(dot(H, N), 0.0), n)
-            , alpha);
-            vec4 textureColor = texture2D(textureSampler, textureCoord);
-            gl_FragColor = textureColor;
-        }
-    `;
-
-    // define vertex shader in essl using es6 template strings
-    var vReplaceShaderCode = `#version 100
-        uniform mat4 view;
-        uniform mat4 model;
-        uniform mat4 invTransModel;
-
-        attribute vec3 vertexPosition;
-        attribute vec3 vertexNormal;
-        attribute vec2 vertexTextureCoord;
-
-        varying vec3 pos;
-        varying vec3 normal;
-        varying vec2 textureCoord;
-
-        void main(void) {
-            vec4 pos4 = model * vec4(vertexPosition, 1.0);
-            vec4 normal4 = invTransModel * vec4(vertexNormal, 1.0);
-
-            gl_Position = view * pos4;
-            pos = pos4.xyz;
-            normal = normalize(normal4.xyz);
-            textureCoord = vertexTextureCoord;
-        }
-    `;
-
-    modulateShader = new Shader(fModulateShaderCode, vModulateShaderCode);
-
-    replaceShader = new Shader(fReplaceShaderCode, vReplaceShaderCode);
-
     //default shader
-    shader = modulateShader;
+    shader = new Shader(fModulateShaderCode, vModulateShaderCode);
 } // end setup shaders
 
 // render the loaded model
@@ -941,9 +796,7 @@ function renderTriangles() {
     gl.uniform3fv(lightUniform, light);
 
     for(var i=0; i<objects.length; i++) {
-        for(var j=0; j<objects[i].triangles.length; j++) {
-            objects[i].draw(false, false);
-        }
+        objects[i].draw();
     }
 } // end render triangles
 
