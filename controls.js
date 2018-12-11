@@ -144,6 +144,7 @@ async function main() {
 
     while(true) {
         gameState.update();
+        updateModels();
         renderTriangles(); // draw the triangles using webGL
         gameState.render(false);
         gl.clear(gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers

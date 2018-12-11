@@ -18,7 +18,7 @@ var vertexPositionAttrib; // where to put position for vertex shader
 var vertexNormalAttrib; // where to put normals for vertex shader
 var textureCoordinateAttrib; // where to put texture coordinates for vertex shader
 var ships = [
-    vec3.fromValues(3,6,32),
+    vec3.fromValues(-7,6,32),
     vec3.fromValues(25,-3,-2),
     vec3.fromValues(32,-19,-10)
 ];
@@ -951,6 +951,22 @@ function setupShaders() {
     //default shader
     shader = new Shader(fModulateShaderCode, vModulateShaderCode);
 } // end setup shaders
+
+
+// update the positions of special models
+function updateModels() {
+    for (let i = 0; i < ships.length; i++) {
+        var transOffset = mat4.create();
+        mat4.fromTranslation(transOffset, ships[i]);
+
+        var rotOffset = mat4.create();
+        mat4.fromXRotation(rotOffset, 0.01);
+
+        mat4.multiply(transOffset, rotOffset, transOffset);
+
+        ships[i] = vec3.fromValues(transOffset[12], transOffset[13], transOffset[14]);
+    }
+}
 
 // render the loaded model
 function renderTriangles() {
