@@ -114,7 +114,10 @@ async function setup() {
     gameState = new GameState();
 
     await modelLoadPromise; // Wait for models to finish loading
-    resetOptions(); // Reset the options menu
+    // Reset the options menu
+    updateInvertY(document.getElementById("invertY"));
+    updateMusicEnabled(document.getElementById("musicEnabled"));
+    updateSnakeColor(document.getElementById("snakeColor"));
 
     doneSettingUp = true;
 }
