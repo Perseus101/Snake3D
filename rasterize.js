@@ -1,6 +1,7 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
 const SKYBOX_URL = "space.json"; // skybox file loc
 const APPLE_URL = "apple.json"; // apple file loc
+const SPACE_SHIP_URL = "ship.json"; // space ship file loc
 const SNAKE_BODY_URL = "snake_body.json"; // triangles file loc
 var light = new vec3.fromValues(-300.0, 150.0, 50); // default light position in world space
 var shader = null;
@@ -62,6 +63,11 @@ class GameState {
         this.snakePieces = this.createInitialSnake(0);
         this.updateScore();
         this.apples = [];
+        this.ships = [
+            vec3.fromValues(3,6,29),
+            vec3.fromValues(20,-3,-2),
+            vec3.fromValues(25,-19,-10)
+        ];
         this.toGrow = 20;
 
         this.camera = this.createInitialCamera();
@@ -282,6 +288,9 @@ class GameState {
             models["snake_body"].material.alpha = 0.3;
         } else {
             models["snake_body"].material.alpha = 1;
+            for (let i = 0; i < this.ships.length; i++) {
+                this.drawWithTranslation(models["space_ship"], this.ships[i]);
+            }
         }
 
         let camera = this.camera;
@@ -866,8 +875,19 @@ async function loadModels() {
                             model.triangles, material);
         });
 
+    let spaceShipPromise = fetch(SPACE_SHIP_URL)
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(model) {
+            model.material.texture = "ufo_diffuse.png";
+            return new Model(model.vertices, model.normals, model.uvs,
+                            model.triangles, model.material);
+        });
+
     models["apple"] = await applePromise;
     models["snake_body"] = await snakeBodyPromise;
+    models["space_ship"] = await spaceShipPromise;
     models["minimap_apple"] = await minimapApplePromise;
 } // end load models
 
