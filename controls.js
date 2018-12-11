@@ -1,4 +1,4 @@
-const MENUS = ["mainMenu", "optionsMenu", "deathScreen", "scoreText"];
+const MENUS = ["mainMenu", "optionsMenu", "deathScreen", "scoreText", "controlsMenu"];
 const DEFAULT_INVERT_Y = false;
 const DEFAULT_MUSIC_ENABLED = true;
 const DEFAULT_COLOR = "57BC57";
