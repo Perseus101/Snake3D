@@ -1,6 +1,7 @@
 /* GLOBAL CONSTANTS AND VARIABLES */
 const SKYBOX_URL = "space.json"; // skybox file loc
 const APPLE_URL = "apple.json"; // apple file loc
+const SPACE_SHIP_URL = "ship.json"; // space ship file loc
 const SNAKE_BODY_URL = "snake.json"; // snake file loc
 const WALL_URL = "wall.json"; // wall file loc
 const GRID_SIZE = 20;
@@ -16,6 +17,11 @@ var models = {};
 var vertexPositionAttrib; // where to put position for vertex shader
 var vertexNormalAttrib; // where to put normals for vertex shader
 var textureCoordinateAttrib; // where to put texture coordinates for vertex shader
+var ships = [
+    vec3.fromValues(-7,6,32),
+    vec3.fromValues(25,-3,-2),
+    vec3.fromValues(32,-19,-10)
+];
 
 var ambientMaterialUniform; // where to put ambient material
 var diffuseMaterialUniform; // where to put diffuse material
@@ -315,29 +321,20 @@ class GameState {
             vec3.add(sum, sum, piece);
 
             if (i > 0 || miniMapMode) {
-                this.drawWithTranslation(models["snake_body"], sum);
+                drawWithTranslation(models["snake_body"], sum);
             }
         }
 
         // Render apples
         for (let i = 0; i < this.apples.length; i++) {
-            this.drawWithTranslation(miniMapMode ? models["minimap_apple"] : models["apple"], this.apples[i]);
+            drawWithTranslation(miniMapMode ? models["minimap_apple"] : models["apple"], this.apples[i]);
         }
 
         if (miniMapMode) {
             gl.clear(gl.DEPTH_BUFFER_BIT);
-            this.drawWithTranslation(models["minimap_snake_head"], this.position);
+            drawWithTranslation(models["minimap_snake_head"], this.position);
         }
     }
-
-    drawWithTranslation(model, translation) {
-        let translationMatrix = mat4.create();
-        mat4.fromTranslation(translationMatrix, translation);
-
-        model.modelMatrix = translationMatrix;
-        model.draw();
-    }
-
 
     // CONTROLS
     turnLeft() {
@@ -684,6 +681,21 @@ function isPowerOf2(value) {
 }
 
 /**
+ * Draws a model with the given offset
+ * Used for drawing multiple instances of models that only have different locations
+ *
+ * @param {Model} model
+ * @param {vec3} translation
+ */
+function drawWithTranslation(model, translation) {
+    let translationMatrix = mat4.create();
+    mat4.fromTranslation(translationMatrix, translation);
+
+    model.modelMatrix = translationMatrix;
+    model.draw();
+}
+
+/**
  * Load texture from url
  * @param {String} url
  */
@@ -812,6 +824,16 @@ async function loadModels() {
                             model.triangles, material);
         });
 
+    let spaceShipPromise = fetch(SPACE_SHIP_URL)
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(model) {
+            model.material.texture = "ufo_diffuse.png";
+            return new Model(model.vertices, model.normals, model.uvs,
+                            model.triangles, model.material);
+        });
+
     let minimapSnakeHead = fetch(SNAKE_BODY_URL)
         .then(function (response) {
             return response.json();
@@ -861,6 +883,7 @@ async function loadModels() {
 
     models["apple"] = await applePromise;
     models["snake_body"] = await snakeBodyPromise;
+    models["space_ship"] = await spaceShipPromise;
     models["minimap_apple"] = await minimapApplePromise;
     models["minimap_snake_head"] = await minimapSnakeHead;
 } // end load models
@@ -929,9 +952,26 @@ function setupShaders() {
     shader = new Shader(fModulateShaderCode, vModulateShaderCode);
 } // end setup shaders
 
+
+// update the positions of special models
+function updateModels() {
+    for (let i = 0; i < ships.length; i++) {
+        var transOffset = mat4.create();
+        mat4.fromTranslation(transOffset, ships[i]);
+
+        var rotOffset = mat4.create();
+        mat4.fromXRotation(rotOffset, 0.01);
+
+        mat4.multiply(transOffset, rotOffset, transOffset);
+
+        ships[i] = vec3.fromValues(transOffset[12], transOffset[13], transOffset[14]);
+    }
+}
+
 // render the loaded model
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
+
     var transform = mat4.create();
     mat4.perspective(transform, Math.PI*0.5, canvas.width/canvas.height, 0.1, 2000);
 
@@ -941,7 +981,12 @@ function renderTriangles() {
     gl.uniform3fv(eyeUniform, gameState.camera.getEye());
     gl.uniform3fv(lightUniform, light);
 
+    for (let i = 0; i < ships.length; i++) {
+        drawWithTranslation(models["space_ship"], ships[i]);
+    }
+
     for(var i=0; i<objects.length; i++) {
         objects[i].draw();
     }
+
 } // end render triangles
