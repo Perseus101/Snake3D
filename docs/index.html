@@ -101,6 +101,13 @@
                 margin-left: 1vh;
             }
 
+            #orientationMenu {
+                height: 100%;
+                background-color: black;
+                padding-top: 15vh;
+                font-size: 5vh;
+            }
+
             #scoreText {
                 text-align: left;
                 background-color: #0000;
@@ -137,6 +144,7 @@
                 <button class="menu-button" onclick="main();">Start</button>
                 <button class="menu-button" onclick='showMenu("optionsMenu");'>Options</button>
                 <button class="menu-button" onclick='showMenu("controlsMenu");'>Controls</button>
+                <button class="menu-button" onclick='toggleFullScreen();'>Fullscreen</button>
             </div>
         </div>
         <div id="optionsMenu" class="menu hidden">
@@ -170,6 +178,11 @@
                 <p>Q: roll left</p>
                 <p>E: roll right</p>
                 <button onclick='showMenu("mainMenu");'>Back</button>
+            </div>
+        </div>
+        <div id="orientationMenu" class="menu hidden">
+            <div>
+                <h1>Please rotate your device</h1>
             </div>
         </div>
         <div id="scoreText" class="menu hidden">
